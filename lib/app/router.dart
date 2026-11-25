@@ -4,11 +4,19 @@ import 'package:go_router/go_router.dart';
 
 import '../core/ui/phase_placeholder.dart';
 import '../features/auth/application/session_controller.dart';
+import '../features/auth/domain/auth.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/two_step_screen.dart';
+import '../features/catalog/presentation/catalog_screen.dart';
+import '../features/catalog/presentation/product_screen.dart';
 import '../features/control/presentation/control_summary_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/orders/presentation/my_orders_screen.dart';
+import '../features/orders/presentation/order_detail_screen.dart';
+import '../features/orders/presentation/product_picker_screen.dart';
+import '../features/orders/presentation/sale_customer_screen.dart';
+import '../features/orders/presentation/sale_products_screen.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
 import 'role_navigation.dart';
@@ -43,9 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return location == target ? null : target;
       }
 
-      // Cada rol solo entra a las pantallas de su barra.
-      final allowed = navItemsFor(member.role).any((item) => item.route == location);
-      return allowed ? null : startRouteFor(member.role);
+      return canOpen(member.role, location) ? null : startRouteFor(member.role);
     },
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (_, _) => const SplashScreen()),
@@ -57,7 +63,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         branches: [
           for (final route in AppRoutes.tabs)
             StatefulShellBranch(
-              routes: [GoRoute(path: route, builder: (_, _) => _screenFor(route))],
+              routes: [
+                GoRoute(
+                  path: route,
+                  builder: (_, _) => _screenFor(route),
+                  routes: _innerRoutes(route),
+                ),
+              ],
             ),
         ],
       ),
@@ -65,21 +77,47 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
+/// Cada rol entra a las pestañas de su barra y a lo que hay dentro de ellas.
+/// «Mis pedidos» además exige vender.
+bool canOpen(MemberRole role, String location) {
+  bool within(String route) => location == route || location.startsWith('$route/');
+  if (within(AppRoutes.orders)) return role.canSell;
+  return navItemsFor(role).any((item) => within(item.route));
+}
+
+/// Pantallas dentro de una pestaña.
+List<GoRoute> _innerRoutes(String tab) => switch (tab) {
+      AppRoutes.home => [
+          GoRoute(
+            path: 'orders',
+            builder: (_, _) => const MyOrdersScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, state) =>
+                    OrderDetailScreen(orderId: state.pathParameters['id']!),
+              ),
+            ],
+          ),
+        ],
+      AppRoutes.catalog => [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => ProductScreen(productId: state.pathParameters['id']!),
+          ),
+        ],
+      AppRoutes.sell => [
+          GoRoute(path: 'add', builder: (_, _) => const ProductPickerScreen()),
+          GoRoute(path: 'customer', builder: (_, _) => const SaleCustomerScreen()),
+        ],
+      _ => const [],
+    };
+
 Widget _screenFor(String route) => switch (route) {
       AppRoutes.home => const HomeScreen(),
       AppRoutes.summary => const ControlSummaryScreen(),
-      AppRoutes.catalog => const PhasePlaceholder(
-          title: 'Catálogo',
-          phase: 2,
-          summary: 'Los 62 productos con precio por unidad y por mayor, stock '
-              'disponible y el mínimo mayorista de cada código.',
-        ),
-      AppRoutes.sell => const PhasePlaceholder(
-          title: 'Registrar venta',
-          phase: 2,
-          summary: 'Productos, cliente, forma de pago y comprobante. El precio por '
-              'mayor se aplica solo: con el mínimo de cada código y pedidos desde Bs 1.000.',
-        ),
+      AppRoutes.catalog => const CatalogScreen(),
+      AppRoutes.sell => const SaleProductsScreen(),
       AppRoutes.cash => const PhasePlaceholder(
           title: 'Cierre de caja',
           phase: 4,

@@ -12,6 +12,12 @@ import '../domain/auth.dart';
 final sessionControllerProvider =
     AsyncNotifierProvider<SessionController, Session?>(SessionController.new);
 
+/// Quién tiene la sesión. Los datos de cada persona la observan, así al
+/// entrar otra no queda nada de la anterior.
+final sessionMemberIdProvider = Provider<String?>(
+  (ref) => ref.watch(sessionControllerProvider.select((s) => s.value?.member.id)),
+);
+
 /// Segundo paso pendiente de Jime o Dirección. `null` = no hay ninguno.
 final secondStepProvider =
     NotifierProvider<SecondStep, TwoFactorChallenge?>(SecondStep.new);

@@ -133,25 +133,33 @@ class OrderLine {
     required this.productId,
     required this.itemCode,
     required this.name,
+    required this.category,
     required this.quantity,
     required this.priceType,
     required this.unitPrice,
     required this.total,
+    this.imageUrl,
   });
 
   factory OrderLine.fromJson(Json json) => OrderLine(
         productId: json.str('product_id'),
         itemCode: json.str('item_code'),
         name: json.str('name'),
+        category: json.str('category'),
         quantity: json.integer('quantity'),
         priceType: PriceType.fromApi(json.str('price_type')),
         unitPrice: json.money('unit_price'),
         total: json.money('line_total'),
+        imageUrl: json.strOrNull('image_url'),
       );
 
   final String productId;
   final String itemCode;
   final String name;
+
+  /// Categoría actual del producto (para su dibujo o foto).
+  final String category;
+  final String? imageUrl;
   final int quantity;
   final PriceType priceType;
   final Money unitPrice;

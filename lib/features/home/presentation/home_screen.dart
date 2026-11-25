@@ -233,14 +233,21 @@ class _TodaySales extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Ventas de hoy'),
+        SectionHeader(
+          'Ventas de hoy',
+          trailing: TextLink('Ver todas', onTap: () => context.go(AppRoutes.orders)),
+        ),
         if (sales.isEmpty)
           Text(
             'Hoy todavía no registras ventas. Toca «Registrar venta» para empezar.',
             style: AppText.body(15, FontWeight.w400, color: AppColors.muted, height: 1.35),
           )
         else
-          for (final (index, sale) in sales.indexed) _SaleRow(sale, divided: index > 0),
+          for (final (index, sale) in sales.indexed)
+            InkWell(
+              onTap: () => context.go(AppRoutes.order(sale.id)),
+              child: _SaleRow(sale, divided: index > 0),
+            ),
       ],
     );
   }

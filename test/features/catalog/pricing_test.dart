@@ -3,7 +3,7 @@ import 'package:traigo/core/money/money.dart';
 import 'package:traigo/features/catalog/domain/catalog.dart';
 import 'package:traigo/features/catalog/domain/pricing.dart';
 
-/// Reglas del Excel de precios y mínimos mayoristas.
+/// Cada producto va por mayor al llegar a su cantidad mínima.
 CatalogItem product(String unit, String? wholesale, int? minimum) => CatalogItem(
       id: unit,
       itemCode: unit,
@@ -19,54 +19,45 @@ CatalogItem product(String unit, String? wholesale, int? minimum) => CatalogItem
 
 final messi = product('87', '82', 24);
 final cement = product('30', '25', 24);
-final planter = product('730', '690', 3);
-
-PricedCart price(List<CartLine> lines) =>
-    PricingRules.price(lines, wholesaleMinOrder: Money.parse('1000'));
+final brownPlanter = product('170', '160', 6);
 
 void main() {
   test('como en el mockup: un código por mayor y otro por unidad', () {
-    final cart = price([CartLine(messi, 24), CartLine(cement, 10)]);
+    final cart = PricedCart([CartLine(messi, 24), CartLine(cement, 10)]);
 
-    expect(cart.wholesaleApplies, isTrue);
     expect(cart.lines.map((l) => l.priceType), [PriceType.wholesale, PriceType.unit]);
-    expect(cart.eligibleWholesale, Money.parse('1968'));
+    expect(cart.wholesaleTotal, Money.parse('1968'));
+    expect(cart.unitTotal, Money.parse('300'));
     expect(cart.total, Money.parse('2268'));
+    expect(cart.wholesaleCount, 1);
     expect(cart.lines.last.missingForMinimum, 14);
   });
 
-  test('llegar al mínimo del código no basta si el pedido no llega a Bs 1.000', () {
-    final cart = price([CartLine(cement, 24)]);
+  test('basta la cantidad mínima: no hay monto mínimo de pedido', () {
+    final line = CartLine(brownPlanter, 6);
 
-    expect(cart.wholesaleApplies, isFalse);
-    expect(cart.lines.single.unitPrice, Money.parse('30'));
-    expect(cart.missingForMinOrder, Money.parse('400'));
+    expect(line.priceType, PriceType.wholesale);
+    expect(line.total, Money.parse('960'), reason: 'aunque no llegue a Bs 1.000');
   });
 
-  test('se suman varios códigos si cada uno llega a su mínimo', () {
-    final cart = price([CartLine(cement, 24), CartLine(planter, 3)]);
+  test('una unidad menos va por unidad', () {
+    final line = CartLine(brownPlanter, 5);
 
-    // 24 × 25 + 3 × 690 = 2.670
-    expect(cart.eligibleWholesale, Money.parse('2670'));
-    expect(cart.total, Money.parse('2670'));
+    expect(line.unitPrice, Money.parse('170'));
+    expect(line.missingForMinimum, 1);
   });
 
-  test('un código sin su mínimo no suma al pedido mayorista', () {
-    final cart = price([CartLine(messi, 23), CartLine(cement, 24)]);
+  test('las unidades de distintos productos no se suman', () {
+    final cart = PricedCart([CartLine(messi, 12), CartLine(cement, 12)]);
 
-    expect(cart.eligibleWholesale, Money.parse('600'));
-    expect(cart.wholesaleApplies, isFalse);
-    expect(cart.total, Money.parse('2721')); // 23 × 87 + 24 × 30
-  });
-
-  test('exactamente Bs 1.000 ya es pedido mayorista', () {
-    final cart = price([CartLine(product('45', '40', 25), 25)]);
-    expect(cart.wholesaleApplies, isTrue);
+    expect(cart.wholesaleCount, 0);
+    expect(cart.total, Money.parse('1404')); // 12 × 87 + 12 × 30
   });
 
   test('sin precio por mayor siempre va por unidad', () {
-    final cart = price([CartLine(product('2000', null, null), 5)]);
-    expect(cart.wholesaleApplies, isFalse);
-    expect(cart.lines.single.missingForMinimum, isNull);
+    final line = CartLine(product('2000', null, null), 50);
+
+    expect(line.priceType, PriceType.unit);
+    expect(line.missingForMinimum, isNull);
   });
 }

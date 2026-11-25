@@ -28,8 +28,22 @@ Todos entran con el PIN `1234`:
 Jime y Dirección escriben además el código de verificación `123456`.
 
 La demo es una foto del **domingo 6 de diciembre de 2026** (cierre de la primera
-semana). Metas, pesos de KPI, mínimos y reparto salen de los Excel; las ventas
-cobradas, los valores reales, las ventas del día y la caja son **de ejemplo**.
+semana). Metas, pesos de KPI, mínimos del equipo y reparto salen de los Excel, y
+también el catálogo: **62 productos** con sus precios y su mínimo por mayor, con
+la ortografía de los nombres corregida. El **stock**, las ventas cobradas, los
+valores reales, las ventas del día y la caja son **de ejemplo**.
+
+En la demo se puede registrar ventas, subir comprobantes (con la cámara o la
+galería de verdad) y cancelar pedidos. El stock se reserva y se libera, pero todo
+vive en memoria y se borra al cerrar la app. Las ventas no mueven las cifras del
+bono, que son fijas.
+
+## Precio por mayor
+
+Cada producto tiene **su propia cantidad mínima**: al llegar a ella, todas las
+unidades de ese producto pasan al precio mayorista. No se suman unidades de
+distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
+`lib/features/catalog/domain/pricing.dart`; el backend debe calcular lo mismo.
 
 Contra el backend Laravel:
 
@@ -71,8 +85,8 @@ lib/
   features/
     auth/              ingreso, verificación en dos pasos y sesión
     home/              Inicio del equipo
-    catalog/           productos y reglas de precio por mayor
-    orders/            ventas y comprobantes
+    catalog/           catálogo, ficha y regla de precio por mayor
+    orders/            registrar venta, mis pedidos y comprobantes
     team/              reglas del bono y del KPI, equipo y «Mi semana»
     warehouse/         despachos, caja del día, stock y conteos
     control/           panel de Jime: resumen, bandeja, cierre, bono, precios
@@ -86,8 +100,9 @@ e interfaz del repositorio), `data/` (contra la API) y `presentation/`
 Las pantallas hablan con interfaces (`AuthRepository`, `OrdersRepository`,
 `ReviewRepository`…). `core/providers.dart` elige la implementación según
 `API_MODE`. **Todas** ya tienen su versión para la API; la versión de demo existe
-para el ingreso, el Inicio y el resumen, y las demás se agregan junto con la
-pantalla de su fase (mientras tanto, en modo demo avisan que llegan después).
+para el ingreso, el Inicio, el resumen, el catálogo y las ventas, y las demás se
+agregan junto con la pantalla de su fase (mientras tanto, en modo demo avisan que
+llegan después).
 
 La app **solo oculta** lo que no corresponde a cada rol. Los permisos de verdad
 los tiene que aplicar el backend.
@@ -101,11 +116,13 @@ flutter test
 
 - `test/features/team`: reglas del bono y del KPI.
 - `test/core`: dinero y servidor de prueba (incluye que las cifras de la demo
-  cuadren entre las pantallas).
+  cuadren entre las pantallas, y las ventas: stock, claves repetidas, cambios de
+  precio y comprobantes).
 - `test/data`: la capa HTTP contra un servidor falso, con los ejemplos de
   `docs/api-contract.md`.
-- `test/features`: ingreso, verificación, Inicio de cada puesto y Resumen,
-  incluso en un celular de 320 de ancho con letra grande.
+- `test/features`: ingreso, verificación, Inicio de cada puesto, Resumen,
+  catálogo, registrar venta, mis pedidos y comprobantes, incluso en un celular de
+  320 de ancho con letra grande.
 - `test/app`: barra por rol, acceso a pantallas y cierre de sesión.
 
 `test/flutter_test_config.dart` carga las fuentes de la app para que las
@@ -114,13 +131,13 @@ comprobaciones de desborde se parezcan a lo que se ve en el celular.
 ## Fases
 
 La **capa de datos de todas las fases** (modelos, rutas y repositorios de la
-API, con pruebas) ya está lista. Falta construir las pantallas de las fases 2 a 5.
+API, con pruebas) ya está lista. Falta construir las pantallas de las fases 3 a 5.
 
 | Fase | Contenido | Pantallas |
 |---|---|---|
 | 1 | Diseño «Ficha técnica», logo e ícono, ingreso para todos (con verificación para Jime y Dirección), barra por rol, Inicio del equipo y Resumen | Hechas |
-| 2 | Catálogo y registrar venta (precio por mayor automático) | Pendientes |
-| 3 | Mi semana, equipo, KPI y subir evidencia (pedirá un paquete para la cámara) | Pendientes |
+| 2 | Catálogo y ficha (todo el equipo); registrar venta en dos pasos con precio por mayor automático, Mis pedidos, detalle, comprobante y cancelar (quienes venden) | Hechas |
+| 3 | Mi semana, equipo, KPI y subir evidencia (la cámara y la galería ya están, con `image_picker`) | Pendientes |
 | 4 | Cierre de caja, despachos, stock y entregas técnicas | Pendientes |
 | 5 | Panel de Jime y Dirección: pendientes, validaciones, cierre, bonos, comisiones, precios y autorización | Pendientes |
 
@@ -144,13 +161,17 @@ Google Fonts:
 ## Pendientes conocidos
 
 - **Decisiones del negocio**: están en la sección 17 de
-  [docs/api-contract.md](docs/api-contract.md) (pedido mayorista, código del
-  segundo paso y comisiones, entre otras).
+  [docs/api-contract.md](docs/api-contract.md) (confirmar los mínimos por mayor
+  de cada producto, el código del segundo paso y las comisiones, entre otras).
+- **Mockups**: todavía mencionan el monto mínimo de Bs 1.000 para el precio por
+  mayor, que ya no aplica (la app, la demo y la base de datos no lo usan).
+- **Fotos de productos**: mientras no haya, la app dibuja una ilustración según
+  la categoría.
 - **Pantalla de cierre de Jime** (fase 5): debe permitir cerrar como «no cumple»
   a quien siga pendiente, con un motivo. Los mockups todavía no lo muestran.
 - **Backend real**: la app aún no se probó contra Laravel.
 - **Celular real**: se revisó con pruebas automáticas y capturas, no en un
-  dispositivo.
+  dispositivo. Falta probar ahí la cámara y la galería.
 - **Android release**: falta configurar la firma (`signingConfig`).
 - **iOS**: renombrada a «Traigo Equipo» (`com.traigo.equipo`) pero sin compilar;
   requiere una Mac.

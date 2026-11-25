@@ -23,6 +23,15 @@ abstract final class AppRoutes {
   static const approve = '/approve';
   static const more = '/more';
 
+  // Pantallas dentro de una pestaña
+  static String product(String id) => '$catalog/$id';
+  static const sellAdd = '$sell/add';
+  static const sellCustomer = '$sell/customer';
+
+  /// «Mis pedidos» (solo quienes venden).
+  static const orders = '$home/orders';
+  static String order(String id) => '$orders/$id';
+
   /// Pestañas de la barra inferior. Su orden es el de las ramas del router.
   static const tabs = [
     home,

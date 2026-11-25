@@ -162,7 +162,7 @@ void main() {
   });
 
   const actions = {
-    'ALI-04': ('+ Registrar venta', 'Llega en la fase 2.'),
+    'ALI-04': ('+ Registrar venta', 'PASO 1 DE 2 · PRODUCTOS'),
     'ISA-03': ('Cierre de caja', 'Llega en la fase 4.'),
     'AIL-02': ('Subir evidencia', 'Llega en la fase 3.'),
   };

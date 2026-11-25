@@ -17,7 +17,7 @@ void main() {
   String path() => h.adapter.last.uri.path.replaceFirst('/api/v1', '');
 
   group('catálogo', () {
-    test('busca por texto y categoría, y trae el pedido mayorista mínimo', () async {
+    test('busca por texto y categoría, y lee precios y stock', () async {
       h.adapter.reply(200, catalogResponse);
 
       final page = await CatalogApiRepository(h.api)
@@ -26,8 +26,7 @@ void main() {
       expect(path(), '/catalog');
       expect(h.adapter.last.uri.queryParameters,
           {'search': 'messi', 'category': 'c1', 'page': '2'});
-      expect(page.wholesaleMinOrder, Money.parse('1000'));
-      final item = page.items.items.single;
+      final item = page.items.single;
       expect(item.priceWholesale, Money.parse('82'));
       expect(item.wholesaleMinQty, 24);
       expect(item.available, 45);

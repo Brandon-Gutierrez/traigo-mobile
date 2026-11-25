@@ -608,8 +608,8 @@ vuelve a `in_review`).
 
 ### `GET /catalog?search=&category=&page=`
 
-Productos activos, por nombre, 30 por página. `search` busca en nombre y código.
-`meta.wholesale_min_order` sale del ajuste `wholesale_min_order_bs`.
+Productos activos, por nombre, 30 por página. `search` busca en nombre y código
+(sin distinguir mayúsculas ni tildes). `category` es el id de la categoría.
 
 ```json
 {
@@ -633,8 +633,7 @@ Productos activos, por nombre, 30 por página. `search` busca en nombre y códig
     "current_page": 1,
     "last_page": 1,
     "per_page": 30,
-    "total": 1,
-    "wholesale_min_order": "1000.00"
+    "total": 1
   }
 }
 ```
@@ -742,6 +741,8 @@ sin `status`, todas.
         "product_id": "p-8107",
         "item_code": "8107",
         "name": "Tomatodos de Messi",
+        "category": "Tomatodos",
+        "image_url": null,
         "quantity": 2,
         "price_type": "unit",
         "unit_price": "87.00",
@@ -784,9 +785,15 @@ sin `status`, todas.
 }
 ```
 
+`lines[]` guarda la copia de la venta; `category` e `image_url` son las del
+producto hoy (solo para mostrarlo).
+
 `can_cancel`: solo en `pending_payment` o `payment_review`. `can_upload_proof`:
-pago `qr` o `transfer` sin un comprobante en revisión ni confirmado. La línea de
-tiempo sale de `created_at`, `paid_at`, `ready_at` y `delivered_at`.
+pago `qr` o `transfer` en `pending_payment` o `payment_review` (en revisión, subir
+otro **reemplaza** al anterior; la app lo muestra como «Cambiar»). Si Jime
+rechazó el comprobante, `payment.status = rejected` y `reject_reason` dice por
+qué. La línea de tiempo sale de `created_at`, `paid_at`, `ready_at` y
+`delivered_at`.
 
 ### `POST /orders` (con `Idempotency-Key`)
 
@@ -1652,7 +1659,7 @@ en todo lo que escribe.
 
 | Método y ruta | Para qué |
 |---|---|
-| `GET /store/config` | WhatsApp, TikTok, punto de recojo, QR de pago, mínimo mayorista, horas de reserva y fechas límite |
+| `GET /store/config` | WhatsApp, TikTok, punto de recojo, QR de pago, horas de reserva y fechas límite |
 | `GET /store/categories` | Categorías con cantidad y precio «desde» |
 | `GET /store/products?category=&min_price=&max_price=&search=&sort=price_asc&page=` | Catálogo (sin costo ni comisión; `available` solo como disponible/agotado) |
 | `GET /store/products/{slug}` | Ficha, precio por mayor y productos relacionados |
@@ -1700,10 +1707,11 @@ validada → `fails`.
 
 ### 13.4 Precios
 
-Un producto va a precio por mayor si llega a su mínimo de unidades (del mismo
-código) **y** los productos que llegan a su mínimo suman, a precio por mayor, al
-menos `wholesale_min_order_bs` (Bs 1.000). Si no, todo va por unidad. Referencia
-con sus pruebas: `lib/features/catalog/domain/pricing.dart` y
+Cada producto va a precio por mayor cuando la línea llega a su cantidad mínima
+(`wholesale_min_qty` unidades del **mismo código**); si no, va por unidad. Las
+unidades de distintos productos no se suman y **no hay monto mínimo de pedido**
+(decisión del 24/11/2026; el Excel proponía Bs 1.000). Referencia con sus
+pruebas: `lib/features/catalog/domain/pricing.dart` y
 `test/features/catalog/pricing_test.dart`.
 
 Promociones: se publican solo autorizadas; una por puerta; **ninguna baja del
@@ -1786,12 +1794,11 @@ las imágenes y la audiencia de regalo (`gift_audience`).
 
 | Tema | Hoy | Falta decidir |
 |---|---|---|
-| Pedido mayorista de Bs 1.000 | Suman los códigos que llegan a su mínimo, a precio por mayor (lectura del Excel) | Confirmarlo (los mínimos del Excel son una «propuesta») |
+| Mínimos por producto | Los del Excel (24, 12, 6 y 3 unidades) | Confirmarlos: el Excel los llama «propuesta comercial» |
 | Código del segundo paso | `channel` libre | ¿WhatsApp, SMS, correo o app autenticadora? |
 | % de comisión y fecha de pago | `null` | Definirlos |
 | Comisión de ventas web | Sin vendedor, sin comisión | Si alguien debe cobrarlas |
 | Cobros en efectivo | Se confirman al validar la caja | Confirmar |
 | Hora acordada de despacho | Campo `promised_dispatch_at` | Quién la define y cuál es el plazo normal |
 | Envío y pasarela | `shipping_bs` nulo; `gateway_provider` libre | Costo del delivery y proveedor de tarjeta |
-| Nombres de productos | Tal como en el Excel | Corregir mayúsculas y errores («MUNÑECA», «TPO», «SPEIDERMAN») |
 | Códigos del equipo | `JIM-01` … `DIR-08` (propuesta) | Confirmarlos antes de entregar los PIN |

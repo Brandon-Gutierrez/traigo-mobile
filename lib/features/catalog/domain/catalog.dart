@@ -85,22 +85,9 @@ class CatalogCategory {
   final int count;
 }
 
-class CatalogPage {
-  const CatalogPage({required this.items, required this.wholesaleMinOrder});
-
-  factory CatalogPage.fromJson(Json json) => CatalogPage(
-        items: PagedResult.fromJson(json, CatalogItem.fromJson),
-        wholesaleMinOrder: json.obj('meta').money('wholesale_min_order'),
-      );
-
-  final PagedResult<CatalogItem> items;
-
-  /// Pedido mayorista mínimo vigente (hoy Bs 1.000).
-  final Money wholesaleMinOrder;
-}
-
 abstract interface class CatalogRepository {
-  Future<CatalogPage> list({String? search, String? categoryId, int page = 1});
+  /// Productos activos por nombre; [search] busca en nombre y código.
+  Future<PagedResult<CatalogItem>> list({String? search, String? categoryId, int page = 1});
 
   Future<List<CatalogCategory>> categories();
 

@@ -24,7 +24,6 @@ const catalogResponse = {
     'last_page': 1,
     'per_page': 30,
     'total': 1,
-    'wholesale_min_order': '1000.00',
   },
 };
 
@@ -83,6 +82,8 @@ const orderDetailResponse = {
         'product_id': 'p-8107',
         'item_code': '8107',
         'name': 'Tomatodos de Messi',
+        'category': 'Tomatodos',
+        'image_url': null,
         'quantity': 2,
         'price_type': 'unit',
         'unit_price': '87.00',

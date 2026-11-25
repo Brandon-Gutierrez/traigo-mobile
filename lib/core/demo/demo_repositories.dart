@@ -1,6 +1,9 @@
 import '../../features/auth/domain/auth.dart';
+import '../../features/catalog/domain/catalog.dart';
 import '../../features/control/domain/control_summary.dart';
 import '../../features/home/domain/home.dart';
+import '../../features/orders/domain/orders.dart';
+import '../network/paged_result.dart';
 import '../storage/token_storage.dart';
 import 'demo_backend.dart';
 
@@ -80,6 +83,66 @@ class DemoHomeRepository extends _DemoRepository implements HomeRepository {
 
   @override
   Future<TeamHome> load() => run(backend.home);
+}
+
+class DemoCatalogRepository extends _DemoRepository implements CatalogRepository {
+  const DemoCatalogRepository(super.backend, super.latency);
+
+  @override
+  Future<PagedResult<CatalogItem>> list({String? search, String? categoryId, int page = 1}) =>
+      run(() {
+        backend.requireMember();
+        return backend.sales.catalog(search: search, categoryId: categoryId, page: page);
+      });
+
+  @override
+  Future<List<CatalogCategory>> categories() => run(() {
+        backend.requireMember();
+        return backend.sales.categories();
+      });
+
+  @override
+  Future<CatalogItem> item(String id) => run(() {
+        backend.requireMember();
+        return backend.sales.item(id);
+      });
+}
+
+class DemoOrdersRepository extends _DemoRepository implements OrdersRepository {
+  const DemoOrdersRepository(super.backend, super.latency);
+
+  @override
+  Future<PagedResult<OrderSummary>> list({
+    OrderFilter filter = OrderFilter.all,
+    int page = 1,
+  }) =>
+      run(() => backend.sales.orders(backend.requireMember(), filter: filter, page: page));
+
+  @override
+  Future<OrderDetail> detail(String id) =>
+      run(() => backend.sales.order(backend.requireMember(), id));
+
+  @override
+  Future<OrderDetail> create(NewSale sale) =>
+      run(() => backend.sales.create(backend.requireMember(), sale));
+
+  @override
+  Future<OrderDetail> cancel(String id, {String? reason}) =>
+      run(() => backend.sales.cancel(backend.requireMember(), id));
+
+  @override
+  Future<OrderDetail> uploadProof(
+    String id, {
+    required UploadFile file,
+    required String clientUuid,
+    String? reference,
+  }) =>
+      run(() => backend.sales.uploadProof(
+            backend.requireMember(),
+            id,
+            filename: file.filename,
+            reference: reference,
+          ));
 }
 
 class DemoControlRepository extends _DemoRepository implements ControlRepository {

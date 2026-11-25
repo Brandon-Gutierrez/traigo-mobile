@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_paths.dart';
+import '../../../core/network/paged_result.dart';
 import '../domain/catalog.dart';
 
 class CatalogApiRepository implements CatalogRepository {
@@ -8,7 +9,11 @@ class CatalogApiRepository implements CatalogRepository {
   final ApiClient _api;
 
   @override
-  Future<CatalogPage> list({String? search, String? categoryId, int page = 1}) async {
+  Future<PagedResult<CatalogItem>> list({
+    String? search,
+    String? categoryId,
+    int page = 1,
+  }) async {
     final text = search?.trim();
     final json = await _api.get(
       ApiPaths.catalog,
@@ -18,7 +23,7 @@ class CatalogApiRepository implements CatalogRepository {
         'page': page,
       },
     );
-    return CatalogPage.fromJson(json);
+    return PagedResult.fromJson(json, CatalogItem.fromJson);
   }
 
   @override

@@ -62,6 +62,19 @@ abstract final class AppTheme {
         ),
         hintStyle: AppText.mono(20, color: AppColors.muted),
       ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.bg,
+        surfaceTintColor: Colors.transparent,
+        shape: BeveledRectangleBorder(
+          borderRadius: BorderRadius.only(topRight: Radius.circular(18)),
+          side: BorderSide(color: AppColors.ink, width: 3),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.ink,
+        contentTextStyle: AppText.body(14.5, FontWeight.w600, color: AppColors.bg),
+        behavior: SnackBarBehavior.fixed,
+      ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.bg,
         surfaceTintColor: Colors.transparent,

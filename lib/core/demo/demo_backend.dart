@@ -5,6 +5,7 @@ import '../../features/team/domain/bonus.dart';
 import '../../features/team/domain/kpi.dart';
 import '../money/money.dart';
 import '../network/api_exception.dart';
+import 'demo_sales.dart';
 
 /// «Servidor» de prueba en memoria. Aplica las mismas reglas que debe aplicar
 /// el backend real (ver docs/api-contract.md), así la app se puede desarrollar
@@ -43,6 +44,15 @@ class DemoBackend {
 
   static final collected = Money.parse('41600');
   static final asOf = DateTime(2026, 12, 6, 18);
+
+  /// El «hoy» de la demo.
+  static final today = DateTime(2026, 12, 6);
+
+  /// Catálogo y ventas. La hora es la actual, en el día de la demo.
+  late final DemoSales sales = DemoSales(now: () {
+    final time = _clock();
+    return DateTime(today.year, today.month, today.day, time.hour, time.minute, time.second);
+  });
 
   static const _challengeLife = Duration(minutes: 5);
   static const _resendWait = Duration(seconds: 45);
@@ -135,7 +145,7 @@ class DemoBackend {
   // ---------------------------------------------------------------- Inicio
 
   TeamHome home() {
-    final member = _requireMember();
+    final member = requireMember();
     if (member.role.isControlSide) {
       throw const NotFoundException('El panel de control no tiene Inicio de equipo.');
     }
@@ -148,7 +158,7 @@ class DemoBackend {
       monthCommission: profile.monthCommission == null
           ? null
           : MonthCommission(amount: Money.parse(profile.monthCommission!)),
-      todaySales: _salesOf(member),
+      todaySales: sales.todaySales(member.id, today),
       cashToday: member.role == MemberRole.warehouse
           ? CashToday(
               collected: Money.parse('4968'),
@@ -163,7 +173,7 @@ class DemoBackend {
   // ---------------------------------------------------------------- Control
 
   ControlSummary controlSummary() {
-    final member = _requireMember();
+    final member = requireMember();
     if (!member.role.isControlSide) {
       throw const NotFoundException('Solo Jime y Dirección ven el resumen de control.');
     }
@@ -211,7 +221,7 @@ class DemoBackend {
     );
   }
 
-  Member _requireMember() {
+  Member requireMember() {
     final member = current;
     if (member == null) {
       throw const UnauthorizedException('Tu sesión terminó. Ingresa otra vez.');
@@ -245,27 +255,6 @@ class DemoBackend {
     );
   }
 
-  List<TodaySale> _salesOf(Member member) {
-    TodaySale sale(String id, int hour, int minute, String items, String customer, String total, PaymentMethod method) =>
-        TodaySale(
-          id: id,
-          createdAt: DateTime(2026, 12, 6, hour, minute),
-          itemsLabel: items,
-          customerName: customer,
-          total: Money.parse(total),
-          paymentMethod: method,
-        );
-    return switch (member.code) {
-      'ALI-04' => [
-          sale('1046', 11, 9, 'Tomatodos de Messi × 2', 'Mariela Quispe', '174', PaymentMethod.qr),
-          sale('1045', 10, 41, 'Tomatodos Dream pequeño × 1', 'Valeria Paz', '80', PaymentMethod.qr),
-        ],
-      'KIM-05' => [
-          sale('1043', 9, 30, 'Tomatodos de Ronaldo × 24', 'Comercio El Hogar', '2016', PaymentMethod.transfer),
-        ],
-      _ => const [],
-    };
-  }
 }
 
 // ──────────────────────────────────────────── datos de la primera semana

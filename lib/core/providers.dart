@@ -94,6 +94,25 @@ final controlRepositoryProvider = Provider<ControlRepository>((ref) {
   return ControlApiRepository(ref.watch(apiClientProvider));
 });
 
+final catalogRepositoryProvider = Provider<CatalogRepository>((ref) {
+  if (_isDemo(ref)) {
+    return DemoCatalogRepository(ref.watch(demoBackendProvider), _latency(ref));
+  }
+  return CatalogApiRepository(ref.watch(apiClientProvider));
+});
+
+final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
+  if (_isDemo(ref)) {
+    return DemoOrdersRepository(ref.watch(demoBackendProvider), _latency(ref));
+  }
+  return OrdersApiRepository(ref.watch(apiClientProvider));
+});
+
+/// «Hoy» para las etiquetas de fecha. En la demo, la foto del 6 de diciembre.
+final todayProvider = Provider<DateTime Function()>(
+  (ref) => _isDemo(ref) ? () => DemoBackend.today : DateTime.now,
+);
+
 // ───── Listos para la API; sus datos de demo se agregan junto con la pantalla
 // ───── de cada fase.
 
@@ -105,11 +124,6 @@ Provider<T> _apiOnly<T>(int phase, T Function(ApiClient api) create) =>
       }
       return create(ref.watch(apiClientProvider));
     });
-
-final catalogRepositoryProvider =
-    _apiOnly<CatalogRepository>(2, CatalogApiRepository.new);
-
-final ordersRepositoryProvider = _apiOnly<OrdersRepository>(2, OrdersApiRepository.new);
 
 final teamRepositoryProvider = _apiOnly<TeamRepository>(3, TeamApiRepository.new);
 
