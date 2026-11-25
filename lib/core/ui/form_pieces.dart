@@ -190,6 +190,7 @@ class LabeledField extends StatelessWidget {
     this.inputFormatters,
     this.textCapitalization = TextCapitalization.none,
     this.onChanged,
+    this.lines = 1,
   });
 
   final String label;
@@ -203,6 +204,9 @@ class LabeledField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
   final ValueChanged<String>? onChanged;
+
+  /// Alto mínimo en líneas, para notas largas.
+  final int lines;
 
   @override
   Widget build(BuildContext context) {
@@ -222,8 +226,11 @@ class LabeledField extends StatelessWidget {
           textCapitalization: textCapitalization,
           onChanged: onChanged,
           style: style,
+          minLines: lines,
+          maxLines: lines == 1 ? 1 : lines + 2,
           decoration: InputDecoration(
             hintText: hint,
+            hintMaxLines: lines,
             hintStyle: style.copyWith(color: AppColors.muted, fontWeight: FontWeight.w400),
           ),
         ),

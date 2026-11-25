@@ -106,7 +106,7 @@ class HomeScreen extends ConsumerWidget {
       ],
       if (deliverables != null) ...[
         const SizedBox(height: 14),
-        _DeliverablesSection(deliverables),
+        _DeliverablesSection(deliverables, onOpen: () => context.go(AppRoutes.week)),
       ],
       if (member.role == MemberRole.content || member.role == MemberRole.systems) ...[
         const SizedBox(height: 14),
@@ -341,16 +341,17 @@ class _CashSection extends StatelessWidget {
 }
 
 class _DeliverablesSection extends StatelessWidget {
-  const _DeliverablesSection(this.deliverables);
+  const _DeliverablesSection(this.deliverables, {required this.onOpen});
 
   final DeliverableProgress deliverables;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Entregas técnicas'),
+        SectionHeader('Entregas técnicas', trailing: TextLink('Ver entregas', onTap: onOpen)),
         LeaderRow('Validadas', '${deliverables.approved} de ${deliverables.total}'),
         const SizedBox(height: 2),
         Text(
@@ -383,21 +384,26 @@ class _PendingEvidence extends StatelessWidget {
           )
         else
           for (final indicator in indicators)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(indicator.name, style: AppText.body(15, FontWeight.w400)),
-                  ),
-                  const SizedBox(width: 10),
-                  StatusMark(
-                    indicator.evidence == EvidenceStatus.observed
-                        ? MarkKind.bad
-                        : MarkKind.pending,
-                    indicator.evidence.label,
-                  ),
-                ],
+            InkWell(
+              onTap: () => context.go(
+                AppRoutes.indicator(AppRoutes.evidence, indicator.id),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(indicator.name, style: AppText.body(15, FontWeight.w400)),
+                    ),
+                    const SizedBox(width: 10),
+                    StatusMark(
+                      indicator.evidence == EvidenceStatus.observed
+                          ? MarkKind.bad
+                          : MarkKind.pending,
+                      indicator.evidence.label,
+                    ),
+                  ],
+                ),
               ),
             ),
       ],

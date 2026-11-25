@@ -45,6 +45,7 @@ void main() {
       expect(h.adapter.last.uri.queryParameters, {'week': '1'});
       expect(week.countTargetFactor, 0.9);
       expect(week.scorePercent, isNull);
+      expect(week.acceptsEvidence, isTrue);
       expect(week.compliance, Compliance.pending);
       final indicator = week.indicators.single;
       expect(indicator.unit, KpiUnit.count);

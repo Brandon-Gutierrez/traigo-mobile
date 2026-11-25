@@ -85,6 +85,19 @@ abstract final class AppTheme {
         titleTextStyle: AppText.display(22),
         contentTextStyle: AppText.body(15, FontWeight.w400),
       ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: AppColors.bg,
+        surfaceTintColor: Colors.transparent,
+        shape: const BeveledRectangleBorder(
+          borderRadius: BorderRadius.only(topRight: Radius.circular(14)),
+          side: BorderSide(color: AppColors.ink, width: 3),
+        ),
+        headerForegroundColor: AppColors.ink,
+        headerHelpStyle: AppText.label(),
+        headerHeadlineStyle: AppText.display(28),
+        dayShape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+        dividerColor: AppColors.rule,
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.ink,

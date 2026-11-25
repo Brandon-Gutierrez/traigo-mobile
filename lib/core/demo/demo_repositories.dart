@@ -3,6 +3,8 @@ import '../../features/catalog/domain/catalog.dart';
 import '../../features/control/domain/control_summary.dart';
 import '../../features/home/domain/home.dart';
 import '../../features/orders/domain/orders.dart';
+import '../../features/team/domain/my_week.dart';
+import '../../features/team/domain/team_week.dart';
 import '../network/paged_result.dart';
 import '../storage/token_storage.dart';
 import 'demo_backend.dart';
@@ -142,6 +144,41 @@ class DemoOrdersRepository extends _DemoRepository implements OrdersRepository {
             id,
             filename: file.filename,
             reference: reference,
+          ));
+}
+
+class DemoTeamRepository extends _DemoRepository implements TeamRepository {
+  const DemoTeamRepository(super.backend, super.latency);
+
+  @override
+  Future<TeamWeek> teamWeek() =>
+      run(() => backend.team.teamWeek(backend.requireMember()));
+
+  @override
+  Future<MyWeek> myWeek({int? weekNumber}) => run(
+        () => backend.team.myWeek(backend.requireMember(), weekNumber: weekNumber),
+      );
+
+  @override
+  Future<Evidence> submitEvidence(String resultId, NewEvidence evidence) => run(
+        () => backend.team.submitEvidence(backend.requireMember(), resultId, evidence),
+      );
+
+  @override
+  Future<Deliverable> submitDeliverable(
+    String id, {
+    required DateTime deliveredOn,
+    required String clientUuid,
+    UploadFile? file,
+    String? url,
+  }) =>
+      run(() => backend.team.submitDeliverable(
+            backend.requireMember(),
+            id,
+            deliveredOn: deliveredOn,
+            clientUuid: clientUuid,
+            file: file,
+            url: url,
           ));
 }
 

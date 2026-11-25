@@ -93,13 +93,13 @@ abstract interface class TeamRepository {
   /// [resultId] es el `id` del indicador en «Mi semana».
   Future<Evidence> submitEvidence(String resultId, NewEvidence evidence);
 
-  /// Envía una entrega de Sistemas con su evidencia (archivo o enlace).
+  /// Envía una entrega de Sistemas con su evidencia (foto o enlace).
+  /// [deliveredOn] es la fecha real, que pone quien entrega y Jime comprueba.
   Future<Deliverable> submitDeliverable(
     String id, {
     required DateTime deliveredOn,
     required String clientUuid,
     UploadFile? file,
     String? url,
-    String? note,
   });
 }

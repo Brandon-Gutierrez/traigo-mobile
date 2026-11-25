@@ -17,6 +17,11 @@ import '../features/orders/presentation/order_detail_screen.dart';
 import '../features/orders/presentation/product_picker_screen.dart';
 import '../features/orders/presentation/sale_customer_screen.dart';
 import '../features/orders/presentation/sale_products_screen.dart';
+import '../features/team/presentation/deliverable_screen.dart';
+import '../features/team/presentation/evidence_screen.dart';
+import '../features/team/presentation/indicator_screen.dart';
+import '../features/team/presentation/team_screen.dart';
+import '../features/team/presentation/week_screen.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
 import 'role_navigation.dart';
@@ -110,8 +115,29 @@ List<GoRoute> _innerRoutes(String tab) => switch (tab) {
           GoRoute(path: 'add', builder: (_, _) => const ProductPickerScreen()),
           GoRoute(path: 'customer', builder: (_, _) => const SaleCustomerScreen()),
         ],
+      AppRoutes.week || AppRoutes.evidence => [
+          GoRoute(
+            path: 'indicator/:id',
+            builder: (_, state) => IndicatorScreen(
+              tab: tab,
+              resultId: state.pathParameters['id']!,
+              weekNumber: _weekOf(state),
+            ),
+          ),
+          GoRoute(
+            path: 'deliverable/:id',
+            builder: (_, state) => DeliverableScreen(
+              tab: tab,
+              deliverableId: state.pathParameters['id']!,
+              weekNumber: _weekOf(state),
+            ),
+          ),
+        ],
       _ => const [],
     };
+
+int? _weekOf(GoRouterState state) =>
+    int.tryParse(state.uri.queryParameters['week'] ?? '');
 
 Widget _screenFor(String route) => switch (route) {
       AppRoutes.home => const HomeScreen(),
@@ -124,24 +150,9 @@ Widget _screenFor(String route) => switch (route) {
           summary: 'La caja del día de todo el equipo por forma de pago, con sus '
               'comprobantes, para enviarla a Jime.',
         ),
-      AppRoutes.evidence => const PhasePlaceholder(
-          title: 'Evidencia',
-          phase: 3,
-          summary: 'Subir fotos o enlaces que respalden cada indicador. Jime carga '
-              'el valor real y valida.',
-        ),
-      AppRoutes.team => const PhasePlaceholder(
-          title: 'Equipo',
-          phase: 3,
-          summary: 'El avance del equipo en la semana y las metas de la campaña, '
-              'del 1 de diciembre al 14 de enero.',
-        ),
-      AppRoutes.week => const PhasePlaceholder(
-          title: 'Mi semana',
-          phase: 3,
-          summary: 'Tu KPI indicador por indicador, con meta, peso y evidencia. '
-              'Para Sistemas, también las entregas técnicas.',
-        ),
+      AppRoutes.evidence => const EvidenceScreen(),
+      AppRoutes.team => const TeamScreen(),
+      AppRoutes.week => const WeekScreen(),
       AppRoutes.pending => const PhasePlaceholder(
           title: 'Pendientes',
           phase: 5,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,11 +11,11 @@ import '../../../core/ui/cut_button.dart';
 import '../../../core/ui/error_panel.dart';
 import '../../../core/ui/ficha.dart';
 import '../../../core/ui/form_pieces.dart';
+import '../../../core/ui/photo_field.dart';
 import '../../../core/ui/refreshable_page.dart';
 import '../../../core/ui/skeleton_block.dart';
 import '../../catalog/presentation/product_art.dart';
 import '../application/orders_providers.dart';
-import '../application/proof_picker.dart';
 import '../domain/orders.dart';
 import 'commission_line.dart';
 import 'order_widgets.dart';
@@ -357,19 +356,7 @@ class _Payment extends ConsumerWidget {
     final source = await chooseProofSource(context);
     if (source == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    final UploadFile? file;
-    try {
-      file = await ref.read(proofPickerProvider).pick(source);
-    } on PlatformException {
-      messenger.showSnackBar(SnackBar(
-        content: Text(
-          source == ProofSource.camera
-              ? 'No se pudo abrir la cámara. Revisa los permisos de la app.'
-              : 'No se pudo abrir la galería. Revisa los permisos de la app.',
-        ),
-      ));
-      return;
-    }
+    final file = await pickPhoto(context, ref, source);
     if (file == null || !context.mounted) return;
     final updated = await reviewAndSendProof(context, orderId: order.summary.id, file: file);
     if (updated == null || !context.mounted) return;

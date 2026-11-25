@@ -125,6 +125,7 @@ class TickRuler extends StatelessWidget {
     this.height = 14,
     this.on = AppColors.violet,
     this.off = AppColors.rule,
+    this.markAt,
   });
 
   final int count;
@@ -134,22 +135,45 @@ class TickRuler extends StatelessWidget {
   final Color on;
   final Color off;
 
+  /// Marca el mínimo (en %) con una línea de tinta que sobresale.
+  final int? markAt;
+
   @override
   Widget build(BuildContext context) {
+    final ticks = SizedBox(
+      height: height,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < count; i++) ...[
+            if (i > 0) const SizedBox(width: 2),
+            Expanded(child: ColoredBox(color: i < filled ? on : off)),
+          ],
+        ],
+      ),
+    );
+    final markAt = this.markAt;
     return Semantics(
       label: semanticLabel,
-      child: SizedBox(
-        height: height,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < count; i++) ...[
-              if (i > 0) const SizedBox(width: 2),
-              Expanded(child: ColoredBox(color: i < filled ? on : off)),
-            ],
-          ],
-        ),
-      ),
+      child: markAt == null
+          ? ticks
+          : Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ticks,
+                Positioned.fill(
+                  top: -4,
+                  bottom: -4,
+                  child: Align(
+                    alignment: Alignment(markAt.clamp(0, 100) / 50 - 1, 0),
+                    child: const ColoredBox(
+                      color: AppColors.ink,
+                      child: SizedBox(width: 3, height: double.infinity),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

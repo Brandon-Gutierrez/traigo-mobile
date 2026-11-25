@@ -108,6 +108,13 @@ final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
   return OrdersApiRepository(ref.watch(apiClientProvider));
 });
 
+final teamRepositoryProvider = Provider<TeamRepository>((ref) {
+  if (_isDemo(ref)) {
+    return DemoTeamRepository(ref.watch(demoBackendProvider), _latency(ref));
+  }
+  return TeamApiRepository(ref.watch(apiClientProvider));
+});
+
 /// «Hoy» para las etiquetas de fecha. En la demo, la foto del 6 de diciembre.
 final todayProvider = Provider<DateTime Function()>(
   (ref) => _isDemo(ref) ? () => DemoBackend.today : DateTime.now,
@@ -124,8 +131,6 @@ Provider<T> _apiOnly<T>(int phase, T Function(ApiClient api) create) =>
       }
       return create(ref.watch(apiClientProvider));
     });
-
-final teamRepositoryProvider = _apiOnly<TeamRepository>(3, TeamApiRepository.new);
 
 final warehouseRepositoryProvider =
     _apiOnly<WarehouseRepository>(4, WarehouseApiRepository.new);

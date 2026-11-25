@@ -164,7 +164,7 @@ void main() {
   const actions = {
     'ALI-04': ('+ Registrar venta', 'PASO 1 DE 2 · PRODUCTOS'),
     'ISA-03': ('Cierre de caja', 'Llega en la fase 4.'),
-    'AIL-02': ('Subir evidencia', 'Llega en la fase 3.'),
+    'AIL-02': ('Subir evidencia', 'LO QUE JIME TODAVÍA NO VALIDA · 1–6 DIC'),
   };
   for (final MapEntry(key: code, value: (action, arrival)) in actions.entries) {
     testWidgets('la acción principal de $code lleva a su pantalla', (tester) async {
@@ -183,7 +183,17 @@ void main() {
     await tester.tap(find.text('Ver mi semana'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Tu KPI indicador por indicador'), findsOneWidget);
+    expect(find.text('TU PUNTAJE'), findsOneWidget);
+  });
+
+  testWidgets('una evidencia pendiente del Inicio abre su detalle', (tester) async {
+    await openAs(tester, 'AIL-02');
+
+    await tester.tap(find.text('LIVES realizados'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Subir evidencia'), findsOneWidget);
+    expect(find.text('LO QUE ENVIASTE'), findsOneWidget);
   });
 
   testWidgets('sin internet muestra el error y se recupera al reintentar', (tester) async {

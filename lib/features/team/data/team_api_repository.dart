@@ -42,11 +42,10 @@ class TeamApiRepository implements TeamRepository {
     required String clientUuid,
     UploadFile? file,
     String? url,
-    String? note,
   }) async {
     final json = await _api.postMultipart(
       ApiPaths.myDeliverable(id),
-      fields: {'delivered_on': apiDate(deliveredOn), 'url': url, 'note': note},
+      fields: {'delivered_on': apiDate(deliveredOn), 'url': url},
       file: file,
       idempotencyKey: clientUuid,
     );

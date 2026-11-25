@@ -32,6 +32,16 @@ abstract final class AppRoutes {
   static const orders = '$home/orders';
   static String order(String id) => '$orders/$id';
 
+  /// La evidencia de un indicador y una entrega de Sistemas, dentro de
+  /// «Mi semana» o de «Evidencia» ([tab]). [weekNumber] para semanas pasadas.
+  static String indicator(String tab, String id, {int? weekNumber}) =>
+      _inWeek('$tab/indicator/$id', weekNumber);
+  static String deliverable(String tab, String id, {int? weekNumber}) =>
+      _inWeek('$tab/deliverable/$id', weekNumber);
+
+  static String _inWeek(String path, int? weekNumber) =>
+      weekNumber == null ? path : '$path?week=$weekNumber';
+
   /// Pestañas de la barra inferior. Su orden es el de las ramas del router.
   static const tabs = [
     home,

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/app/app_bottom_bar.dart';
+import 'package:traigo/core/media/photo_picker.dart';
 import 'package:traigo/core/network/upload_file.dart';
-import 'package:traigo/features/orders/application/proof_picker.dart';
 
 import 'test_app.dart';
 
@@ -46,15 +46,15 @@ Finder field(String label) => find.descendant(
     );
 
 /// Devuelve siempre la misma foto (o nada) y anota de dónde se pidió.
-class FakeProofPicker implements ProofPicker {
-  FakeProofPicker({this.file, this.error});
+class FakePhotoPicker implements PhotoPicker {
+  FakePhotoPicker({this.file, this.error});
 
   UploadFile? file;
   Object? error;
-  final List<ProofSource> sources = [];
+  final List<PhotoSource> sources = [];
 
   @override
-  Future<UploadFile?> pick(ProofSource source) async {
+  Future<UploadFile?> pick(PhotoSource source) async {
     sources.add(source);
     final error = this.error;
     if (error != null) throw error;

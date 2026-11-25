@@ -3,16 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/app/router.dart';
 import 'package:traigo/core/network/upload_file.dart';
-import 'package:traigo/features/orders/application/proof_picker.dart';
+import 'package:traigo/core/media/photo_picker.dart';
 
 import '../../support/sales_helpers.dart';
 import '../../support/test_app.dart';
 
 void main() {
-  late FakeProofPicker picker;
+  late FakePhotoPicker picker;
 
   setUp(() {
-    picker = FakeProofPicker(
+    picker = FakePhotoPicker(
       file: const UploadFile(path: '/no/existe/foto.jpg', filename: 'foto.jpg'),
     );
   });
@@ -23,7 +23,7 @@ void main() {
       code,
       null,
       height: 1500,
-      overrides: [proofPickerProvider.overrideWithValue(picker)],
+      overrides: [photoPickerProvider.overrideWithValue(picker)],
     );
     await scrollAndTap(tester, find.text('Ver todas'));
   }
@@ -76,7 +76,7 @@ void main() {
     await tester.tap(find.text('Elegir de la galería'));
     await tester.pumpAndSettle();
 
-    expect(picker.sources, [ProofSource.gallery]);
+    expect(picker.sources, [PhotoSource.gallery]);
     expect(find.text('Revisa la foto'), findsOneWidget);
     await tester.enterText(field('Número de referencia (opcional)'), '0045-8812');
     await tester.tap(find.text('Enviar a Jime'));
@@ -95,7 +95,7 @@ void main() {
     await tester.tap(find.text('Tomar foto'));
     await tester.pumpAndSettle();
 
-    expect(picker.sources, [ProofSource.camera]);
+    expect(picker.sources, [PhotoSource.camera]);
     expect(find.text('Revisa la foto'), findsNothing);
     expect(find.text('comprobante-qr.jpg'), findsOneWidget);
   });

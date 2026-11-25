@@ -33,17 +33,11 @@ también el catálogo: **62 productos** con sus precios y su mínimo por mayor, 
 la ortografía de los nombres corregida. El **stock**, las ventas cobradas, los
 valores reales, las ventas del día y la caja son **de ejemplo**.
 
-En la demo se puede registrar ventas, subir comprobantes (con la cámara o la
-galería de verdad) y cancelar pedidos. El stock se reserva y se libera, pero todo
-vive en memoria y se borra al cerrar la app. Las ventas no mueven las cifras del
-bono, que son fijas.
-
-## Precio por mayor
-
-Cada producto tiene **su propia cantidad mínima**: al llegar a ella, todas las
-unidades de ese producto pasan al precio mayorista. No se suman unidades de
-distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
-`lib/features/catalog/domain/pricing.dart`; el backend debe calcular lo mismo.
+En la demo se puede registrar ventas, subir comprobantes y evidencia (con la
+cámara o la galería de verdad), enviar entregas de Sistemas y cancelar pedidos.
+El stock se reserva y se libera, y lo enviado queda «En revisión» (validar es del
+panel de Jime, fase 5). Todo vive en memoria y se borra al cerrar la app. Las
+ventas no mueven las cifras del bono ni los valores del KPI, que son fijos.
 
 Contra el backend Laravel:
 
@@ -68,6 +62,25 @@ dart tool/build_contract.dart
 Los ejemplos JSON salen de `test/fixtures/`, los mismos que prueban la app, y una
 prueba falla si el documento queda desactualizado o le falta alguna ruta.
 
+## Precio por mayor
+
+Cada producto tiene **su propia cantidad mínima**: al llegar a ella, todas las
+unidades de ese producto pasan al precio mayorista. No se suman unidades de
+distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
+`lib/features/catalog/domain/pricing.dart`; el backend debe calcular lo mismo.
+
+## Evidencia y entregas
+
+- La evidencia de un indicador es una **foto** (JPG o PNG, máximo 5 MB), un
+  **enlace** o, para quienes venden, un **pedido propio**. No se adjuntan PDF:
+  un informe se sube como enlace o como foto.
+- Cuando Jime **ya la validó**, solo se puede ver. Si la observa, se vuelve a
+  subir.
+- En las entregas de Sistemas, **la fecha real la pone quien entrega** (viene con
+  la de hoy) y Jime la comprueba; de ella sale «a tiempo» o «fuera de plazo».
+- En «Mi semana» se pueden revisar las semanas anteriores y subir lo que falte
+  mientras no estén cerradas.
+
 ## Estructura
 
 ```
@@ -77,6 +90,7 @@ lib/
     config/            demo vs. API real (--dart-define)
     network/           cliente Dio, errores tipados, rutas de la API
     money/             Money: dinero en centavos, con formato «Bs 412,50»
+    media/             fotos con la cámara o la galería
     storage/           token de sesión en almacenamiento seguro
     theme/             colores, fuentes y tema del diseño «Ficha técnica»
     ui/                piezas del diseño (corte, botón, filas con puntos, regla)
@@ -87,7 +101,7 @@ lib/
     home/              Inicio del equipo
     catalog/           catálogo, ficha y regla de precio por mayor
     orders/            registrar venta, mis pedidos y comprobantes
-    team/              reglas del bono y del KPI, equipo y «Mi semana»
+    team/              bono y KPI: «Equipo», «Mi semana», evidencia y entregas
     warehouse/         despachos, caja del día, stock y conteos
     control/           panel de Jime: resumen, bandeja, cierre, bono, precios
     management/        autorizaciones de Dirección
@@ -100,9 +114,9 @@ e interfaz del repositorio), `data/` (contra la API) y `presentation/`
 Las pantallas hablan con interfaces (`AuthRepository`, `OrdersRepository`,
 `ReviewRepository`…). `core/providers.dart` elige la implementación según
 `API_MODE`. **Todas** ya tienen su versión para la API; la versión de demo existe
-para el ingreso, el Inicio, el resumen, el catálogo y las ventas, y las demás se
-agregan junto con la pantalla de su fase (mientras tanto, en modo demo avisan que
-llegan después).
+para el ingreso, el Inicio, el resumen, el catálogo, las ventas y el equipo
+(«Mi semana», evidencia y entregas). Las de almacén y del panel de Jime se
+agregan junto con las pantallas de su fase.
 
 La app **solo oculta** lo que no corresponde a cada rol. Los permisos de verdad
 los tiene que aplicar el backend.
@@ -114,10 +128,11 @@ flutter analyze
 flutter test
 ```
 
-- `test/features/team`: reglas del bono y del KPI.
+- `test/features/team`: reglas del bono y del KPI, «Equipo», «Mi semana»,
+  evidencia y entregas.
 - `test/core`: dinero y servidor de prueba (incluye que las cifras de la demo
-  cuadren entre las pantallas, y las ventas: stock, claves repetidas, cambios de
-  precio y comprobantes).
+  cuadren entre las pantallas; las ventas: stock, claves repetidas, cambios de
+  precio y comprobantes; y las reglas de evidencia y entregas).
 - `test/data`: la capa HTTP contra un servidor falso, con los ejemplos de
   `docs/api-contract.md`.
 - `test/features`: ingreso, verificación, Inicio de cada puesto, Resumen,
@@ -131,14 +146,14 @@ comprobaciones de desborde se parezcan a lo que se ve en el celular.
 ## Fases
 
 La **capa de datos de todas las fases** (modelos, rutas y repositorios de la
-API, con pruebas) ya está lista. Falta construir las pantallas de las fases 3 a 5.
+API, con pruebas) ya está lista. Falta construir las pantallas de las fases 4 y 5.
 
 | Fase | Contenido | Pantallas |
 |---|---|---|
 | 1 | Diseño «Ficha técnica», logo e ícono, ingreso para todos (con verificación para Jime y Dirección), barra por rol, Inicio del equipo y Resumen | Hechas |
 | 2 | Catálogo y ficha (todo el equipo); registrar venta en dos pasos con precio por mayor automático, Mis pedidos, detalle, comprobante y cancelar (quienes venden) | Hechas |
-| 3 | Mi semana, equipo, KPI y subir evidencia (la cámara y la galería ya están, con `image_picker`) | Pendientes |
-| 4 | Cierre de caja, despachos, stock y entregas técnicas | Pendientes |
+| 3 | «Mi semana» con el KPI, «Equipo», subir y ver evidencia, la pestaña «Evidencia» y las entregas de Sistemas | Hechas |
+| 4 | Cierre de caja, despachos y stock | Pendientes |
 | 5 | Panel de Jime y Dirección: pendientes, validaciones, cierre, bonos, comisiones, precios y autorización | Pendientes |
 
 Las pestañas de las fases pendientes muestran una pantalla provisional
@@ -172,6 +187,8 @@ Google Fonts:
 - **Backend real**: la app aún no se probó contra Laravel.
 - **Celular real**: se revisó con pruebas automáticas y capturas, no en un
   dispositivo. Falta probar ahí la cámara y la galería.
+- **Enlaces de evidencia**: se pueden copiar, pero la app no los abre (haría
+  falta el paquete `url_launcher`).
 - **Android release**: falta configurar la firma (`signingConfig`).
 - **iOS**: renombrada a «Traigo Equipo» (`com.traigo.equipo`) pero sin compilar;
   requiere una Mac.

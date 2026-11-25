@@ -68,6 +68,19 @@ class Evidence {
   final String? reviewNote;
 }
 
+/// Un enlace web completo; si falta «https://», se agrega. `null` si el texto
+/// no es un enlace.
+String? normalizeLink(String raw) {
+  var text = raw.trim();
+  if (text.isEmpty || text.contains(RegExp(r'\s'))) return null;
+  if (!text.contains('://')) text = 'https://$text';
+  final uri = Uri.tryParse(text);
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) return null;
+  final host = uri.host;
+  if (!host.contains('.') || host.startsWith('.') || host.endsWith('.')) return null;
+  return text;
+}
+
 /// Evidencia que se va a enviar: una foto, un enlace o un pedido.
 class NewEvidence {
   const NewEvidence.photo({required this.clientUuid, required UploadFile this.file, this.note})
@@ -116,7 +129,12 @@ class WeekIndicator {
   final KpiIndicator indicator;
   final String howVerified;
   final KpiUnit unit;
+
+  /// Lo enviado para este indicador, lo más nuevo primero.
   final List<Evidence> evidence;
+
+  /// Cuando Jime ya la validó, no se agrega más (solo se ve).
+  bool get isValidated => indicator.evidence == EvidenceStatus.validated;
 }
 
 enum DeliverableStatus {
@@ -176,6 +194,10 @@ class Deliverable {
   final DateTime? deliveredOn;
   final String? evidenceUrl;
   final String? reviewNote;
+
+  /// Jime ya la validó, a tiempo o fuera de plazo: no se vuelve a enviar.
+  bool get isValidated =>
+      status == DeliverableStatus.onTime || status == DeliverableStatus.late;
 }
 
 class MyWeek {
@@ -188,6 +210,7 @@ class MyWeek {
     required this.compliance,
     required this.indicators,
     required this.deliverables,
+    required this.acceptsEvidence,
     this.scorePercent,
     this.closedReason,
   });
@@ -204,6 +227,7 @@ class MyWeek {
       compliance: Compliance.fromApi(json.str('compliance')),
       indicators: json.list('indicators').map(WeekIndicator.fromJson).toList(),
       deliverables: json.list('deliverables').map(Deliverable.fromJson).toList(),
+      acceptsEvidence: json.flag('accepts_evidence'),
       closedReason: json.strOrNull('closed_reason'),
     );
   }
@@ -226,6 +250,24 @@ class MyWeek {
   /// Solo Sistemas en la semana que pide entregas.
   final List<Deliverable> deliverables;
 
+  /// `false` cuando la semana ya está autorizada o Jime cerró la de esta
+  /// persona: ya no se sube evidencia ni entregas.
+  final bool acceptsEvidence;
+
   /// Motivo, si Jime cerró esta semana como «no cumple».
   final String? closedReason;
+
+  /// Indicadores sin validar: primero los observados, después los que no
+  /// tienen nada y al final los que están en revisión.
+  List<WeekIndicator> get awaitingEvidence {
+    const order = [EvidenceStatus.observed, EvidenceStatus.missing, EvidenceStatus.inReview];
+    return [
+      for (final status in order)
+        ...indicators.where((i) => i.indicator.evidence == status),
+    ];
+  }
+
+  /// Entregas que Jime todavía no valida.
+  List<Deliverable> get openDeliverables =>
+      deliverables.where((d) => !d.isValidated).toList();
 }

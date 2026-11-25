@@ -5,18 +5,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/media/photo_picker.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/ui/cut_button.dart';
 import '../../../core/ui/form_pieces.dart';
 import '../../auth/presentation/auth_frame.dart' show FormError;
-import '../application/proof_picker.dart';
 import '../domain/orders.dart';
 
 /// De dónde sale la foto del comprobante. Devuelve la elección.
-Future<ProofSource?> chooseProofSource(BuildContext context) {
-  return showModalBottomSheet<ProofSource>(
+Future<PhotoSource?> chooseProofSource(BuildContext context) {
+  return showModalBottomSheet<PhotoSource>(
     context: context,
     useRootNavigator: true,
     builder: (context) => SafeArea(
@@ -35,13 +35,13 @@ Future<ProofSource?> chooseProofSource(BuildContext context) {
             const SizedBox(height: 14),
             CutButton(
               label: 'Tomar foto',
-              onPressed: () => Navigator.pop(context, ProofSource.camera),
+              onPressed: () => Navigator.pop(context, PhotoSource.camera),
             ),
             const SizedBox(height: 10),
             CutButton(
               label: 'Elegir de la galería',
               color: AppColors.ink,
-              onPressed: () => Navigator.pop(context, ProofSource.gallery),
+              onPressed: () => Navigator.pop(context, PhotoSource.gallery),
             ),
           ],
         ),

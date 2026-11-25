@@ -110,6 +110,9 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `not_pending` | 422 | Se intentó cerrar a mano a alguien que no está pendiente |
 | `rates_pending` | 409 | Hay ventas sin % de comisión definido |
 | `not_ready_to_pay` | 409 | Todavía no lo autorizó Dirección |
+| `evidence_validated` | 409 | Jime ya validó ese indicador: no admite más evidencia |
+| `deliverable_validated` | 409 | Jime ya validó esa entrega: no se vuelve a enviar |
+| `week_closed` | 409 | La semana ya está autorizada o Jime cerró la de esa persona |
 
 ## 2. Roles y permisos
 
@@ -503,9 +506,14 @@ Los escalones salen de `bonus_tiers` (`sales_needed` redondeado hacia arriba).
 
 ### `GET /me/week?week=1`
 
-Sin `week`, la semana en curso. `score_percent` es `null` mientras falte cargar
-algún indicador. `deliverables` solo para Sistemas en la semana que las pide.
-`closed_reason` como en el Inicio.
+Sin `week`, la semana en curso. Con `week` también las anteriores (la app deja
+revisarlas y subir evidencia mientras no se cierren); una semana que todavía no
+empieza responde `404`. `score_percent` es `null` mientras falte cargar algún
+indicador. `deliverables` solo para Sistemas en la semana que las pide.
+`closed_reason` como en el Inicio. `accepts_evidence` es `false` cuando la
+semana ya está autorizada o Jime cerró la de esta persona; entonces la app no
+ofrece subir nada. Dentro de cada indicador, `evidence` va de lo más nuevo a lo
+más antiguo.
 
 ```json
 {
@@ -549,6 +557,7 @@ algún indicador. `deliverables` solo para Sistemas en la semana que las pide.
       }
     ],
     "deliverables": [],
+    "accepts_evidence": true,
     "closed_reason": null
   }
 }
@@ -561,9 +570,21 @@ mientras falte fecha real, evidencia o validación; con las tres es
 
 ### `POST /me/kpi-results/{id}/evidence`
 
-`multipart`: `kind` (`photo`, `link` u `order`), `file` (foto), `url` (enlace),
-`order_id` (pedido propio), `note`. Solo el indicador propio y mientras la semana
-no esté autorizada. `201`:
+`multipart`: `kind` (`photo`, `link` u `order`), `file` (foto JPG o PNG),
+`url` (enlace `http` o `https`), `order_id` (pedido propio que no esté
+cancelado, vencido ni devuelto; solo quienes venden) y `note` (opcional, hasta
+500 caracteres). No se adjuntan otros archivos: un informe se sube como enlace o
+foto (decisión del 24/11/2026).
+
+- Solo el indicador propio; si no, `404`.
+- Si Jime ya validó el indicador (la evidencia más reciente está `validated`),
+  `409 evidence_validated`. Para que se pueda volver a subir, Jime la marca como
+  observada.
+- Si `accepts_evidence` es `false`, `409 week_closed`.
+- La nueva queda `in_review` y ese pasa a ser el estado del indicador. Se pueden
+  enviar varias mientras no esté validado.
+
+`201`:
 
 ```json
 {
@@ -583,9 +604,17 @@ no esté autorizada. `201`:
 
 ### `POST /me/deliverables/{id}/submission`
 
-`multipart`: `delivered_on` (fecha real), `file` o `url` (evidencia), `note`.
-Guarda la evidencia y deja la entrega **sin validar** (si ya estaba rechazada,
-vuelve a `in_review`).
+`multipart`: `delivered_on` (fecha real) y `file` (foto) o `url` (enlace). No
+lleva nota: la base no la guarda y el Excel solo pide la evidencia o el enlace.
+
+- La **fecha real la pone quien entrega** (la app propone hoy y deja elegir una
+  anterior; no puede ser futura) y Jime la comprueba al validar. Con ella la base
+  decide «a tiempo» o «fuera de plazo».
+- Si ya está validada (`on_time` o `late`), `409 deliverable_validated`; si
+  `accepts_evidence` es `false`, `409 week_closed`.
+- Mientras no esté validada se puede reenviar y **reemplaza** lo anterior: queda
+  sin validar (`jime_validated`, `validated_by`, `validated_at` y `review_note`
+  en nulo), o sea `in_review`.
 
 ```json
 {

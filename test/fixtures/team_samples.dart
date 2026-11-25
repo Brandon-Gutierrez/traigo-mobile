@@ -100,6 +100,7 @@ const myWeekResponse = {
       },
     ],
     'deliverables': <Object>[],
+    'accepts_evidence': true,
     'closed_reason': null,
   },
 };
