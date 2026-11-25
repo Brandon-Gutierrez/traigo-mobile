@@ -105,8 +105,26 @@ void main() {
     await tester.tap(find.text('Ver pendientes'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Llega en la fase 5.'), findsOneWidget);
-    expect(find.textContaining('primero los más antiguos'), findsOneWidget);
+    expect(find.text('7 por revisar · primero los más antiguos'), findsOneWidget);
+  });
+
+  testWidgets('cada cuenta abre la bandeja filtrada', (tester) async {
+    await openAs(tester, 'JIM-01');
+
+    await tester.tap(find.text('Pagos por confirmar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 por revisar · primero los más antiguos'), findsOneWidget);
+    expect(find.text('PAGO'), findsNWidgets(3));
+  });
+
+  testWidgets('«Ver cumplimiento» muestra a cada persona', (tester) async {
+    await openAs(tester, 'JIM-01');
+
+    await scrollAndTap(tester, find.text('Ver cumplimiento'));
+
+    expect(find.text('Cumplimiento'), findsOneWidget);
+    expect(find.text('Sistemas 1'), findsOneWidget);
   });
 
   testWidgets('Dirección no revisa la bandeja pero sí puede ir a autorizar', (tester) async {
@@ -119,7 +137,7 @@ void main() {
     expect(find.text('A pagar si autorizas'), findsOneWidget);
 
     await scrollAndTap(tester, find.text('Revisar y autorizar'));
-    expect(find.text('Autorizar pagos'), findsOneWidget);
+    expect(find.text('Por autorizar'), findsOneWidget);
   });
 
   testWidgets('nombra a quienes no cumplen, con «e» antes de Isaí', (tester) async {

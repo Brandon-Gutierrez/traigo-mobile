@@ -92,7 +92,7 @@ void main() {
       expect(today.pending.single.number, 'N-1044');
       expect(today.pending.single.sellerName, 'Kim');
       expect(today.pendingDays.map((d) => (d.date.day, d.status)),
-          [(4, CashStatus.observed), (5, CashStatus.open)]);
+          [(3, CashStatus.open), (4, CashStatus.observed)]);
     });
 
     test('una venta en efectivo entra en la caja de hoy', () {
@@ -147,16 +147,24 @@ void main() {
         () => backend.warehouse.sendClosing(isai, closing(open, key: 'c-2')),
         conflict('closing_already_sent'),
       );
-      expect(backend.warehouse.closingsToReview, 2);
+      expect(backend.warehouse.closingsToReview, 2, reason: 'el sábado 5 y hoy');
     });
 
-    test('un día anterior pendiente se puede enviar y deja de estarlo', () {
-      final friday = day(DateTime(2026, 12, 5));
-      expect(line(friday, PaymentMethod.cash).expected, Money.parse('90'));
+    test('un día anterior sin cobros también se envía y deja de estar pendiente', () {
+      final thursday = day(DateTime(2026, 12, 3));
+      expect(thursday.collected, Money.zero);
 
-      backend.warehouse.sendClosing(isai, closing(friday));
+      backend.warehouse.sendClosing(isai, closing(thursday));
 
       expect(day().pendingDays.map((d) => d.date.day), [4]);
+    });
+
+    test('el sábado 5 ya está enviado a Jime', () {
+      final saturday = day(DateTime(2026, 12, 5));
+
+      expect(saturday.status, CashStatus.sent);
+      expect(saturday.canSend, isFalse);
+      expect(backend.warehouse.closingsToReview, 1);
     });
 
     test('hay que mandar todas las formas de pago y solo días de la campaña', () {

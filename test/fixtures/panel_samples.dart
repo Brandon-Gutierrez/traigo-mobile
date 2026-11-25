@@ -1,6 +1,7 @@
 /// Ejemplos del panel de Jime y de Dirección (docs/api-contract.md).
 library;
 
+import 'sales_samples.dart' show orderDetailBodyJson, orderSummaryJson;
 import 'team_samples.dart' show evidenceJson, numberedWeekJson;
 
 const pendingResponse = {
@@ -72,6 +73,45 @@ const evidenceReviewResponse = {
   },
 };
 
+const controlOrdersResponse = {
+  'data': [
+    {...orderSummaryJson, 'seller_name': 'Alison'},
+    {
+      'id': 'o-1037',
+      'number': 'N-1037',
+      'created_at': '2026-12-05T19:40:00-04:00',
+      'customer_name': 'Lucía Rojas',
+      'items_label': 'Lámpara de noche × 1',
+      'total': '95.00',
+      'payment_method': 'transfer',
+      'status': 'payment_review',
+      'seller_name': null,
+    },
+  ],
+  'meta': {'current_page': 1, 'last_page': 1, 'per_page': 30, 'total': 2},
+};
+
+const controlOrderResponse = {
+  'data': {
+    ...orderDetailBodyJson,
+    'commission': null,
+    'can_cancel': false,
+    'can_upload_proof': false,
+    'seller_name': 'Alison',
+    'can_return': false,
+    'can_mark_duplicate': true,
+    'void_reason': null,
+    'duplicate_of_number': null,
+  },
+};
+
+const teamAccountsResponse = {
+  'data': [
+    {'id': '2', 'code': 'AIL-02', 'name': 'Ailén', 'title': 'Contenido y lives'},
+    {'id': '4', 'code': 'ALI-04', 'name': 'Alison', 'title': 'Ventas por comisión'},
+  ],
+};
+
 const complianceResponse = {
   'data': [
     {
@@ -124,8 +164,6 @@ const weeklyClosingResponse = {
 };
 
 const sendClosingRequest = {
-  'payments_reconciled': true,
-  'kpi_evidence_ok': true,
   'duplicates_cleared': true,
   'close_pending': [
     {'member_id': 'm-6', 'reason': 'Solo 2 de sus 4 entregas quedaron validadas.'},

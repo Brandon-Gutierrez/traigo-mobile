@@ -24,6 +24,7 @@ import '../features/warehouse/data/warehouse_api_repository.dart';
 import '../features/warehouse/domain/warehouse.dart';
 import 'config/app_config.dart';
 import 'demo/demo_backend.dart';
+import 'demo/demo_panel_repositories.dart';
 import 'demo/demo_repositories.dart';
 import 'network/api_client.dart';
 import 'storage/last_code_storage.dart';
@@ -134,24 +135,23 @@ final nowProvider = Provider<DateTime Function()>((ref) {
   return () => DemoBackend.atDemoDay(clock());
 });
 
-// ───── Listos para la API; sus datos de demo se agregan junto con la pantalla
-// ───── de cada fase.
+/// Un repositorio del panel: demo o API.
+Provider<T> _panel<T>(
+  T Function(DemoBackend backend, Duration latency) demo,
+  T Function(ApiClient api) api,
+) =>
+    Provider<T>((ref) => _isDemo(ref)
+        ? demo(ref.watch(demoBackendProvider), _latency(ref))
+        : api(ref.watch(apiClientProvider)));
 
-/// Repositorio que por ahora solo funciona contra el backend.
-Provider<T> _apiOnly<T>(int phase, T Function(ApiClient api) create) =>
-    Provider<T>((ref) {
-      if (_isDemo(ref)) {
-        throw UnsupportedError('Los datos de demo de esta parte llegan en la fase $phase.');
-      }
-      return create(ref.watch(apiClientProvider));
-    });
-
-final reviewRepositoryProvider = _apiOnly<ReviewRepository>(5, ReviewApiRepository.new);
+final reviewRepositoryProvider =
+    _panel<ReviewRepository>(DemoReviewRepository.new, ReviewApiRepository.new);
 
 final payoutsRepositoryProvider =
-    _apiOnly<PayoutsRepository>(5, PayoutsApiRepository.new);
+    _panel<PayoutsRepository>(DemoPayoutsRepository.new, PayoutsApiRepository.new);
 
-final adminRepositoryProvider = _apiOnly<AdminRepository>(5, AdminApiRepository.new);
+final adminRepositoryProvider =
+    _panel<AdminRepository>(DemoAdminRepository.new, AdminApiRepository.new);
 
 final managementRepositoryProvider =
-    _apiOnly<ManagementRepository>(5, ManagementApiRepository.new);
+    _panel<ManagementRepository>(DemoManagementRepository.new, ManagementApiRepository.new);

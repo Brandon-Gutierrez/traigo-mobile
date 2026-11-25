@@ -8,6 +8,8 @@ import '../../orders/domain/orders.dart';
 import '../../team/domain/kpi.dart';
 import '../../team/domain/my_week.dart';
 import '../../warehouse/domain/warehouse.dart';
+import '../../../core/network/paged_result.dart';
+import 'control_orders.dart';
 
 enum PendingType {
   payment('payment', 'Pagos'),
@@ -199,4 +201,13 @@ abstract interface class ReviewRepository {
 
   /// Venta registrada dos veces: se anula esta y queda ligada a la original.
   Future<void> markDuplicate(String orderId, {required String originalOrderId});
+
+  /// Todos los pedidos, del más nuevo al más antiguo. [search] busca por
+  /// número o nombre del cliente.
+  Future<PagedResult<ControlOrderSummary>> orders({String? search, int page = 1});
+
+  Future<ControlOrder> order(String id);
+
+  /// La semana de un integrante, para cargar sus valores reales.
+  Future<MyWeek> memberWeek(String memberId, {int? weekNumber});
 }

@@ -61,6 +61,19 @@ String _countInReview(WeekIndicator item) {
   return '$count ${count == 1 ? one : many}';
 }
 
+/// Cómo se nombra una evidencia enviada: el archivo, el enlace o el pedido.
+String evidenceTitle(Evidence e) => switch (e.kind) {
+      EvidenceKind.photo => e.url == null ? 'Foto' : attachmentName(e.url!),
+      EvidenceKind.link => e.url?.replaceFirst(RegExp(r'^https?://'), '') ?? 'Enlace',
+      EvidenceKind.order => 'Pedido ${e.orderNumber ?? ''}'.trim(),
+    };
+
+(MarkKind, String) evidenceStatusMark(EvidenceStatus status) => switch (status) {
+      EvidenceStatus.validated => (MarkKind.ok, 'Validada'),
+      EvidenceStatus.observed => (MarkKind.bad, 'Observada'),
+      EvidenceStatus.inReview || EvidenceStatus.missing => (MarkKind.pending, 'En revisión'),
+    };
+
 MarkKind deliverableMark(DeliverableStatus status) => switch (status) {
       DeliverableStatus.onTime => MarkKind.ok,
       DeliverableStatus.late || DeliverableStatus.notValidated => MarkKind.bad,

@@ -71,16 +71,18 @@ abstract final class KpiRules {
   static int scorePercent(Iterable<KpiIndicator> indicators) =>
       (score(indicators) * 100 + 1e-9).floor();
 
-  /// Pendiente si falta cargar algún indicador o si queda una entrega por
-  /// validar ([deliverablesApproved] en falso).
+  /// Pendiente si falta cargar algún indicador o si queda una entrega sin
+  /// resolver. [deliverables] es el estado de las entregas que pide la semana:
+  /// `fails` si alguna llegó tarde o Jime no la validó.
   static Compliance compliance(
     Iterable<KpiIndicator> indicators, {
     required int minimumPercent,
-    bool deliverablesApproved = true,
+    Compliance deliverables = Compliance.passes,
   }) {
-    if (indicators.any((i) => i.actual == null) || !deliverablesApproved) {
+    if (indicators.any((i) => i.actual == null) || deliverables == Compliance.pending) {
       return Compliance.pending;
     }
+    if (deliverables == Compliance.fails) return Compliance.fails;
     return scorePercent(indicators) >= minimumPercent ? Compliance.passes : Compliance.fails;
   }
 }

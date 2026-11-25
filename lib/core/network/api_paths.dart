@@ -38,6 +38,8 @@ abstract final class ApiPaths {
   // Panel de Jime y Dirección
   static const controlSummary = '/control/summary';
   static const controlPending = '/control/pending';
+  static const controlOrders = '/control/orders';
+  static String controlOrder(String id) => '/control/orders/$id';
   static String controlOrderReturn(String id) => '/control/orders/$id/return';
   static String controlOrderDuplicate(String id) => '/control/orders/$id/duplicate';
   static String controlPayment(String id) => '/control/payments/$id';
@@ -67,6 +69,8 @@ abstract final class ApiPaths {
   static const controlAudit = '/control/audit';
   static String controlReport(String type) => '/control/reports/$type';
   static const controlSystemStatus = '/control/system-status';
+  static const controlMembers = '/control/members';
+  static String controlMemberWeek(String id) => '/control/members/$id/week';
   static String controlMemberPin(String id) => '/control/members/$id/pin';
   static String controlMemberRevoke(String id) => '/control/members/$id/revoke-sessions';
 

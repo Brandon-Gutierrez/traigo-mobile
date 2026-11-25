@@ -113,6 +113,39 @@ void main() {
       expect(path(), '/control/orders/o-1049/duplicate');
       expect(h.adapter.last.data, duplicateOrderRequest);
     });
+
+    test('busca pedidos y abre uno con lo que se puede hacer', () async {
+      h.adapter
+        ..reply(200, controlOrdersResponse)
+        ..reply(200, controlOrderResponse)
+        ..reply(200, controlOrdersResponse);
+      final repo = ReviewApiRepository(h.api);
+
+      final page = await repo.orders(search: '  mariela ');
+      expect(path(), '/control/orders');
+      expect(h.adapter.last.uri.queryParameters, {'search': 'mariela', 'page': '1'});
+      expect(page.items.first.sellerName, 'Alison');
+      expect(page.items.last.sellerName, isNull, reason: 'tienda web');
+
+      final order = await repo.order('o-1046');
+      expect(path(), '/control/orders/o-1046');
+      expect(order.canMarkDuplicate, isTrue);
+      expect(order.canReturn, isFalse);
+      expect(order.detail.lines.single.quantity, 2);
+
+      await repo.orders(search: ' ');
+      expect(h.adapter.last.uri.queryParameters, {'page': '1'});
+    });
+
+    test('lee la semana de un integrante para cargar sus valores', () async {
+      h.adapter.reply(200, myWeekResponse);
+
+      final week = await ReviewApiRepository(h.api).memberWeek('4', weekNumber: 1);
+
+      expect(path(), '/control/members/4/week');
+      expect(h.adapter.last.uri.queryParameters, {'week': '1'});
+      expect(week.indicators, isNotEmpty);
+    });
   });
 
   group('cierre, bono y comisiones', () {
@@ -123,8 +156,7 @@ void main() {
       });
 
       await expectLater(
-        PayoutsApiRepository(h.api).sendWeeklyClosing(1,
-            paymentsReconciled: true, kpiEvidenceOk: true, duplicatesCleared: true),
+        PayoutsApiRepository(h.api).sendWeeklyClosing(1, duplicatesCleared: true),
         throwsA(isA<ConflictException>().having((e) => e.code, 'code', 'pending_members')),
       );
       expect((h.adapter.last.data as Map)['close_pending'], isEmpty);
@@ -155,8 +187,6 @@ void main() {
 
       await repo.sendWeeklyClosing(
         1,
-        paymentsReconciled: true,
-        kpiEvidenceOk: true,
         duplicatesCleared: true,
         closePending: {waiting.id: 'Solo 2 de sus 4 entregas quedaron validadas.'},
       );
@@ -251,6 +281,15 @@ void main() {
         throwsA(isA<ValidationException>()
             .having((e) => e.message, 'message', 'Esa semana todavía no empezó.')),
       );
+    });
+
+    test('lista las cuentas del equipo', () async {
+      h.adapter.reply(200, teamAccountsResponse);
+
+      final accounts = await AdminApiRepository(h.api).members();
+
+      expect(path(), '/control/members');
+      expect(accounts.map((a) => a.code), ['AIL-02', 'ALI-04']);
     });
 
     test('restablece un PIN y cierra sesiones', () async {

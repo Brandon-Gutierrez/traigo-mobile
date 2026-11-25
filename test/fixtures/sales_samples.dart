@@ -75,48 +75,53 @@ const newSaleRequest = {
   'expected_total': '2268.00',
 };
 
-const orderDetailResponse = {
-  'data': {
-    ...orderSummaryJson,
-    'origin': 'whatsapp',
-    'customer_phone': '71234567',
-    'delivery': {
-      'type': 'pickup',
-      'address': null,
-      'promised_at': '2026-12-06T18:00:00-04:00',
-    },
-    'lines': [
-      {
-        'product_id': 'p-8107',
-        'item_code': '8107',
-        'name': 'Tomatodos de Messi',
-        'category': 'Tomatodos',
-        'image_url': null,
-        'quantity': 2,
-        'price_type': 'unit',
-        'unit_price': '87.00',
-        'line_total': '174.00',
-      },
-    ],
-    'payment': {
-      'method': 'qr',
-      'status': 'submitted',
-      'reference': null,
-      'proof_url': 'https://res.cloudinary.com/traigo/comprobante-1046.jpg',
-      'submitted_at': '2026-12-06T11:25:00-04:00',
-      'reject_reason': null,
-    },
-    'timeline': [
-      {'status': 'pending_payment', 'at': '2026-12-06T11:09:00-04:00'},
-      {'status': 'paid', 'at': null},
-      {'status': 'ready', 'at': null},
-      {'status': 'delivered', 'at': null},
-    ],
-    'commission': {'status': 'pending', 'amount': null},
-    'can_cancel': true,
-    'can_upload_proof': true,
+/// Lo común de un pedido abierto, sin lo que cambia según quién lo mira.
+const orderDetailBodyJson = {
+  ...orderSummaryJson,
+  'origin': 'whatsapp',
+  'customer_phone': '71234567',
+  'delivery': {
+    'type': 'pickup',
+    'address': null,
+    'promised_at': '2026-12-06T18:00:00-04:00',
   },
+  'lines': [
+    {
+      'product_id': 'p-8107',
+      'item_code': '8107',
+      'name': 'Tomatodos de Messi',
+      'category': 'Tomatodos',
+      'image_url': null,
+      'quantity': 2,
+      'price_type': 'unit',
+      'unit_price': '87.00',
+      'line_total': '174.00',
+    },
+  ],
+  'payment': {
+    'method': 'qr',
+    'status': 'submitted',
+    'reference': null,
+    'proof_url': 'https://res.cloudinary.com/traigo/comprobante-1046.jpg',
+    'submitted_at': '2026-12-06T11:25:00-04:00',
+    'reject_reason': null,
+  },
+  'timeline': [
+    {'status': 'pending_payment', 'at': '2026-12-06T11:09:00-04:00'},
+    {'status': 'paid', 'at': null},
+    {'status': 'ready', 'at': null},
+    {'status': 'delivered', 'at': null},
+  ],
 };
+
+const orderDetailJson = {
+  ...orderDetailBodyJson,
+  'commission': {'status': 'pending', 'amount': null},
+  'can_cancel': true,
+  'can_upload_proof': true,
+};
+
+const orderDetailResponse = {'data': orderDetailJson};
 
 const priceChangedError = {
   'message': 'Los precios cambiaron. Revisa el total antes de registrar.',

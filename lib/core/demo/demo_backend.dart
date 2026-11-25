@@ -2,9 +2,10 @@ import '../../features/auth/domain/auth.dart';
 import '../../features/control/domain/control_summary.dart';
 import '../../features/home/domain/home.dart';
 import '../../features/team/domain/bonus.dart';
-import '../../features/team/domain/kpi.dart';
 import '../money/money.dart';
 import '../network/api_exception.dart';
+import 'demo_audit.dart';
+import 'demo_control.dart';
 import 'demo_sales.dart';
 import 'demo_team.dart';
 import 'demo_warehouse.dart';
@@ -56,8 +57,21 @@ class DemoBackend {
   /// KPI, evidencia y entregas.
   late final DemoTeam team = DemoTeam(now: _demoNow, sales: sales);
 
+  /// El historial de cambios.
+  late final DemoAudit audit = DemoAudit(now: _demoNow);
+
   /// Caja, despachos, stock y conteos.
-  late final DemoWarehouse warehouse = DemoWarehouse(now: _demoNow, sales: sales);
+  late final DemoWarehouse warehouse =
+      DemoWarehouse(now: _demoNow, sales: sales, audit: audit);
+
+  /// El panel de Jime y las autorizaciones de Dirección.
+  late final DemoControl control = DemoControl(
+    now: _demoNow,
+    sales: sales,
+    team: team,
+    warehouse: warehouse,
+    audit: audit,
+  );
 
   /// La hora de [time], en el día de la demo.
   static DateTime atDemoDay(DateTime time) =>
@@ -79,7 +93,8 @@ class DemoBackend {
 
   LoginOutcome login(String code, String enteredPin) {
     final member = _byCode(code);
-    if (member == null || enteredPin != pin) {
+    // Jime puede haber cambiado el PIN de alguien del equipo.
+    if (member == null || enteredPin != (control.pins[member.id] ?? pin)) {
       throw const UnauthorizedException('Código o PIN incorrectos.');
     }
     if (member.role.isControlSide) {
@@ -175,52 +190,30 @@ class DemoBackend {
   // ---------------------------------------------------------------- Control
 
   ControlSummary controlSummary() {
+    requireControlSide();
+    return control.summary();
+  }
+
+  /// Jime o Dirección (lo que ambos pueden leer).
+  Member requireControlSide() {
     final member = requireMember();
     if (!member.role.isControlSide) {
-      throw const NotFoundException('Solo Jime y Dirección ven el resumen de control.');
+      throw const NotFoundException('Solo Jime y Dirección ven el panel de control.');
     }
-    final results = <MemberResult>[];
-    final shares = <BonusShare>[];
-    var evidenceInReview = 0;
-    for (final m in members.where((m) => !m.role.isControlSide)) {
-      final kpi = team.kpiOf(m.id);
-      final shareRate = team.shareRate(m.id);
-      evidenceInReview +=
-          kpi.indicators.where((i) => i.evidence == EvidenceStatus.inReview).length;
-      final deliverables = kpi.deliverables;
-      results.add(MemberResult(
-        id: m.id,
-        name: m.name,
-        scorePercent: kpi.scorePercent,
-        minimumPercent: kpi.minimumPercent,
-        compliance: kpi.compliance,
-        fundShareRate: shareRate,
-        note: deliverables != null && !deliverables.complete
-            ? '${deliverables.approved} de ${deliverables.total} entregas validadas'
-            : null,
-      ));
-      shares.add(BonusShare(name: m.name, rate: shareRate, compliance: kpi.compliance));
-    }
-    final distribution = BonusRules.distribute(collected: collected, week: week, shares: shares);
-    return ControlSummary(
-      asOf: asOf,
-      week: week,
-      collected: collected,
-      pending: PendingReview(
-        payments: 3,
-        evidence: evidenceInReview,
-        cashClosings: warehouse.closingsToReview,
-        deliverables: team.deliverablesInReview,
-      ),
-      members: results,
-      bonus: BonusResult(
-        level: distribution.level,
-        prize: distribution.prize,
-        payable: distribution.payable,
-        unpaidFailing: distribution.unpaidFailing,
-        unpaidPending: distribution.unpaidPending,
-      ),
-    );
+    return member;
+  }
+
+  /// Solo Jime valida y propone.
+  Member requireControl() => _requireRole(MemberRole.control, 'Solo Jime hace esto.');
+
+  /// Solo Dirección autoriza.
+  Member requireManagement() =>
+      _requireRole(MemberRole.management, 'Solo Dirección hace esto.');
+
+  Member _requireRole(MemberRole role, String message) {
+    final member = requireMember();
+    if (member.role != role) throw NotFoundException(message);
+    return member;
   }
 
   Member requireMember() {

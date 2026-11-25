@@ -17,6 +17,7 @@ import '../../team/domain/bonus.dart';
 import '../../team/presentation/week_block.dart';
 import '../application/control_providers.dart';
 import '../domain/control_summary.dart';
+import '../domain/review.dart';
 
 /// Resumen de Jime y Dirección: la semana, lo que falta revisar, cómo va cada
 /// integrante y el bono.
@@ -109,10 +110,10 @@ class _Pending extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = [
-      ('Pagos por confirmar', pending.payments),
-      ('Evidencias de KPI', pending.evidence),
-      ('Cierres de caja', pending.cashClosings),
-      ('Entregas de Sistemas', pending.deliverables),
+      (PendingType.payment, 'Pagos por confirmar', pending.payments),
+      (PendingType.evidence, 'Evidencias de KPI', pending.evidence),
+      (PendingType.cashClosing, 'Cierres de caja', pending.cashClosings),
+      (PendingType.deliverable, 'Entregas de Sistemas', pending.deliverables),
     ];
     final count = AppText.mono(15, weight: FontWeight.w700, color: AppColors.violet);
 
@@ -132,7 +133,17 @@ class _Pending extends StatelessWidget {
             style: AppText.body(15, FontWeight.w400, color: AppColors.muted),
           )
         else
-          for (final (label, value) in rows) LeaderRow(label, '$value', valueStyle: count),
+          for (final (type, label, value) in rows)
+            if (isManagement || value == 0)
+              LeaderRow(label, '$value', valueStyle: count)
+            else
+              Semantics(
+                button: true,
+                child: InkWell(
+                  onTap: () => context.go(AppRoutes.pendingOfType(type.apiValue)),
+                  child: LeaderRow(label, '$value', valueStyle: count),
+                ),
+              ),
       ],
     );
   }
@@ -148,7 +159,13 @@ class _Members extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Equipo esta semana'),
+        SectionHeader(
+          'Equipo esta semana',
+          trailing: TextLink(
+            'Ver cumplimiento',
+            onTap: () => context.go(AppRoutes.compliance),
+          ),
+        ),
         for (final (index, member) in members.indexed)
           _MemberRow(member, divided: index > 0),
       ],

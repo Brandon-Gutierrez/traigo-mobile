@@ -273,6 +273,10 @@ class CommissionRow {
   final Money adjustments;
 }
 
+/// El mes como lo pide la API: `2026-12`.
+String monthKey(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}';
+
 class MonthCommissions {
   const MonthCommissions({
     required this.month,
@@ -304,6 +308,9 @@ class MonthCommissions {
   final List<CommissionRow> members;
   final DateTime? settlesOn;
   final String? returnReason;
+
+  /// Hay ventas cobradas o devoluciones que liquidar.
+  bool get hasActivity => members.any((m) => m.paidSales > 0 || !m.adjustments.isZero);
 }
 
 abstract interface class PayoutsRepository {
@@ -311,13 +318,13 @@ abstract interface class PayoutsRepository {
 
   Future<WeeklyClosing> weeklyClosing({int? weekNumber});
 
-  /// Envía el cierre a Dirección. [closePending] (id de integrante → motivo)
-  /// cierra como «no cumple» a quienes sigan pendientes. Lanza
-  /// [ConflictException] con `pending_members` si queda alguien sin resolver.
+  /// Envía el cierre a Dirección. Los cobros y la evidencia los comprueba el
+  /// servidor; Jime confirma que no quedan duplicados. [closePending] (id de
+  /// integrante → motivo) cierra como «no cumple» a quienes sigan pendientes.
+  /// Lanza [ConflictException] con `pending_members`, o [ValidationException]
+  /// con `checks_failed` o `not_pending`.
   Future<WeeklyClosing> sendWeeklyClosing(
     int weekNumber, {
-    required bool paymentsReconciled,
-    required bool kpiEvidenceOk,
     required bool duplicatesCleared,
     Map<String, String> closePending = const {},
     String? observations,

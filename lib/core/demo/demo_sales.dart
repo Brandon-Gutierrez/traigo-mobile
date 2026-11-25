@@ -3,6 +3,9 @@ import 'dart:convert';
 import '../../features/auth/domain/auth.dart';
 import '../../features/catalog/domain/catalog.dart';
 import '../../features/catalog/domain/pricing.dart';
+import '../../features/control/domain/admin.dart';
+import '../../features/control/domain/control_orders.dart';
+import '../../features/control/domain/review.dart';
 import '../../features/home/domain/home.dart';
 import '../../features/orders/domain/orders.dart';
 import '../../features/warehouse/domain/warehouse.dart';
@@ -21,7 +24,13 @@ class DemoSales {
       _stock[_productId(product.code)] = _Stock(product.stock, product.reserved);
     }
     // Reservas de los pedidos de ejemplo que la lista de stock no contaba.
-    for (final (code, quantity) in const [('A397462', 1), ('A433734', 4), ('8850', 4)]) {
+    for (final (code, quantity) in const [
+      ('A397462', 1),
+      ('A433734', 4),
+      ('8850', 4),
+      ('A222840', 2),
+      ('A226453', 1),
+    ]) {
       _stock[_productId(code)]!.reserved += quantity;
     }
     _orders.addAll(_seedOrders());
@@ -38,6 +47,12 @@ class DemoSales {
   final List<_DemoOrder> _orders = [];
   final Map<String, ({String fingerprint, String orderId})> _requests = {};
   int _nextNumber = 1047;
+
+  /// Precios, mínimos, comisiones y costos ya aprobados por Dirección.
+  final Map<String, PriceValues> _prices = {};
+
+  /// Comisiones descontadas por devoluciones.
+  final List<({String sellerId, Money amount, DateTime at})> _adjustments = [];
 
   static String _productId(String code) => 'p-$code';
 
@@ -73,14 +88,16 @@ class DemoSales {
   CatalogItem _item(DemoProduct product) {
     final id = _productId(product.code);
     final stock = _stock[id]!;
+    final approved = _prices[id];
     return CatalogItem(
       id: id,
       itemCode: product.code,
       name: product.name,
       category: product.category,
-      priceUnit: Money.fromCents(product.unit * 100),
-      priceWholesale: Money.fromCents(product.wholesale * 100),
-      wholesaleMinQty: product.minimum,
+      priceUnit: approved?.priceUnit ?? Money.fromCents(product.unit * 100),
+      priceWholesale: approved?.priceWholesale ?? Money.fromCents(product.wholesale * 100),
+      wholesaleMinQty: approved?.wholesaleMinQty ?? product.minimum,
+      commissionPct: approved?.commissionPct,
       stock: stock.stock,
       reserved: stock.reserved,
       available: stock.stock - stock.reserved,
@@ -229,6 +246,8 @@ class DemoSales {
       status: cash ? OrderStatus.paid : OrderStatus.pendingPayment,
       paidAt: cash ? createdAt : null,
       lines: [for (final line in cart) _line(line.item, line.quantity, line.priceType)],
+      // La comisión de cada producto, como estaba al vender.
+      rates: {for (final line in cart) line.item.id: line.item.commissionPct},
       payment: cash
           ? OrderPayment(
               method: PaymentMethod.cash,
@@ -273,9 +292,7 @@ class DemoSales {
       );
     }
     final cleaned = reference?.trim();
-    if (cleaned != null &&
-        cleaned.isNotEmpty &&
-        _orders.any((o) => o.id != id && o.payment?.reference == cleaned)) {
+    if (cleaned != null && cleaned.isNotEmpty && _referenceUsed(cleaned, id)) {
       throw const ConflictException(
         code: 'reference_duplicated',
         message: 'Ese número de referencia ya se usó en otro pago.',
@@ -396,7 +413,7 @@ class DemoSales {
               customerName: o.customerName,
               method: o.method,
               total: o.total,
-              sellerName: DemoBackend.members.where((m) => m.id == o.sellerId).firstOrNull?.name,
+              sellerName: _sellerName(o.sellerId),
               detail: o.payment?.status == PaymentStatus.rejected
                   ? 'comprobante rechazado'
                   : 'sin comprobante',
@@ -429,6 +446,352 @@ class DemoSales {
     _stock[productId]!.stock += delta;
     return stockLevel(productId);
   }
+
+  // ─────────────────────────────────────────────────────── para el panel de Jime
+
+  /// Comprobantes por revisar, del más antiguo al más nuevo.
+  List<PaymentReview> proofsToReview() => [
+        for (final o in _orders)
+          if (o.status == OrderStatus.paymentReview &&
+              o.payment?.status == PaymentStatus.submitted)
+            _paymentReview(o),
+      ]..sort((a, b) => a.submittedAt!.compareTo(b.submittedAt!));
+
+  PaymentReview paymentReview(String orderId) {
+    final order = _any(orderId);
+    if (order.payment == null) {
+      throw const NotFoundException('Ese pedido todavía no tiene un pago.');
+    }
+    return _paymentReview(order);
+  }
+
+  PaymentReview confirmPayment(
+    String orderId, {
+    required bool amountMatches,
+    required bool destinationOk,
+  }) {
+    final order = _inReview(orderId);
+    if (!amountMatches || !destinationOk) {
+      throw const ValidationException(
+        message: 'Si el monto o la cuenta no coinciden, rechaza el comprobante.',
+      );
+    }
+    final payment = order.payment!;
+    if (payment.reference != null && _referenceUsed(payment.reference!, orderId)) {
+      throw const ConflictException(
+        code: 'reference_duplicated',
+        message: 'Ese número de referencia ya se usó en otro pago.',
+      );
+    }
+    order
+      ..payment = _withStatus(payment, PaymentStatus.confirmed)
+      ..status = OrderStatus.paid
+      ..paidAt = _now();
+    return _paymentReview(order);
+  }
+
+  PaymentReview rejectPayment(String orderId, String reason) {
+    _requireReason(reason);
+    final order = _inReview(orderId);
+    order
+      ..payment = _withStatus(order.payment!, PaymentStatus.rejected, reason: reason.trim())
+      ..status = OrderStatus.pendingPayment;
+    return _paymentReview(order);
+  }
+
+  /// Al validar la caja de [day], el efectivo de ese día queda confirmado.
+  void confirmCashOn(DateTime day) {
+    for (final order in _orders) {
+      final payment = order.payment;
+      if (payment != null &&
+          payment.method == PaymentMethod.cash &&
+          payment.status == PaymentStatus.submitted &&
+          _sameDay(payment.submittedAt!, day)) {
+        order.payment = _withStatus(payment, PaymentStatus.confirmed);
+      }
+    }
+  }
+
+  /// Los pagos que llegaron entre [from] y [to] (incluido): cuántos están
+  /// confirmados y cuántos faltan (comprobantes y efectivo).
+  ({int confirmed, int proofs, int cash}) paymentsBetween(DateTime from, DateTime to) {
+    var confirmed = 0;
+    var proofs = 0;
+    var cash = 0;
+    final end = DateTime(to.year, to.month, to.day + 1);
+    for (final o in _orders) {
+      final payment = o.payment;
+      final at = payment?.submittedAt;
+      if (payment == null || at == null || at.isBefore(from) || !at.isBefore(end)) continue;
+      if (o.status == OrderStatus.cancelled || o.status == OrderStatus.returned) continue;
+      if (payment.status == PaymentStatus.confirmed) confirmed++;
+      if (payment.status == PaymentStatus.submitted) {
+        payment.method == PaymentMethod.cash ? cash++ : proofs++;
+      }
+    }
+    return (confirmed: confirmed, proofs: proofs, cash: cash);
+  }
+
+  static const controlOrdersPageSize = 20;
+
+  PagedResult<ControlOrderSummary> allOrders({String? search, int page = 1}) {
+    final query = _fold(search ?? '').trim();
+    final matches = [
+      for (final o in _orders)
+        if (query.isEmpty || _fold('N-${o.id} ${o.customerName}').contains(query)) o,
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return _page(
+      [
+        for (final o in matches)
+          ControlOrderSummary(order: o.summary, sellerName: _sellerName(o.sellerId)),
+      ],
+      page,
+      controlOrdersPageSize,
+    );
+  }
+
+  ControlOrder controlOrder(String id) {
+    final order = _any(id);
+    final duplicateOf = order.duplicateOfId;
+    return ControlOrder(
+      detail: order.detail,
+      sellerName: _sellerName(order.sellerId),
+      canReturn: _canReturn(order),
+      canMarkDuplicate: _canBeDuplicate(order),
+      voidReason: order.voidReason,
+      duplicateOfNumber: duplicateOf == null ? null : 'N-$duplicateOf',
+    );
+  }
+
+  static bool _canReturn(_DemoOrder o) =>
+      o.status == OrderStatus.paid ||
+      o.status == OrderStatus.ready ||
+      o.status == OrderStatus.delivered;
+
+  /// Con un cobro confirmado o ya entregado no es un duplicado: es devolución.
+  static bool _canBeDuplicate(_DemoOrder o) =>
+      o.payment?.status != PaymentStatus.confirmed &&
+      const {
+        OrderStatus.pendingPayment,
+        OrderStatus.paymentReview,
+        OrderStatus.paid,
+        OrderStatus.ready,
+      }.contains(o.status);
+
+  /// Devuelve el pedido: revierte el cobro, descuenta la comisión ganada y, si
+  /// ya se había entregado, la mercadería vuelve al stock.
+  void returnOrder(String id, String reason) {
+    _requireReason(reason);
+    final order = _any(id);
+    if (!_canReturn(order)) {
+      throw const ConflictException(
+        code: 'invalid_status',
+        message: 'Este pedido no se puede devolver.',
+      );
+    }
+    final payment = order.payment;
+    final earned = payment?.status == PaymentStatus.confirmed;
+    final commission = order.commissionAmount;
+    if (earned && order.sellerId != null && commission != null) {
+      _adjustments.add(
+        (sellerId: order.sellerId!, amount: Money.fromCents(-commission.cents), at: _now()),
+      );
+    }
+    final delivered = order.status == OrderStatus.delivered;
+    for (final line in order.lines) {
+      delivered
+          ? _stock[line.productId]!.stock += line.quantity
+          : _stock[line.productId]!.reserved -= line.quantity;
+    }
+    if (payment != null) {
+      // Lo confirmado se revierte; lo que faltaba confirmar se rechaza.
+      order.payment = _withStatus(
+        payment,
+        earned ? PaymentStatus.reversed : PaymentStatus.rejected,
+        reason: reason.trim(),
+      );
+    }
+    order
+      ..status = OrderStatus.returned
+      ..voidReason = reason.trim();
+  }
+
+  /// Anula [id] porque es el mismo pedido que [originalId]. Devuelve sus números.
+  String markDuplicate(String id, String originalId) {
+    final order = _any(id);
+    if (!_canBeDuplicate(order)) {
+      throw const ConflictException(
+        code: 'invalid_status',
+        message: 'Con un cobro confirmado o ya entregado, registra una devolución.',
+      );
+    }
+    final original = _any(originalId);
+    if (originalId == id ||
+        original.duplicateOfId != null ||
+        const {OrderStatus.cancelled, OrderStatus.expired, OrderStatus.returned}
+            .contains(original.status)) {
+      throw const ValidationException(message: 'Elige como original un pedido vigente.');
+    }
+    for (final line in order.lines) {
+      _stock[line.productId]!.reserved -= line.quantity;
+    }
+    final payment = order.payment;
+    if (payment != null) {
+      order.payment = _withStatus(payment, PaymentStatus.rejected,
+          reason: 'Duplicado de N-$originalId');
+    }
+    order
+      ..status = OrderStatus.cancelled
+      ..duplicateOfId = originalId
+      ..voidedAt = _now();
+    return 'N-$id';
+  }
+
+  /// Los duplicados quitados entre [from] y [to] (incluido).
+  List<String> duplicatesBetween(DateTime from, DateTime to) {
+    final end = DateTime(to.year, to.month, to.day + 1);
+    return [
+      for (final o in _orders)
+        if (o.duplicateOfId != null &&
+            !o.voidedAt!.isBefore(from) &&
+            o.voidedAt!.isBefore(end))
+          'N-${o.id}',
+    ];
+  }
+
+  // ───────────────────────────────────────────────────────── precios y comisiones
+
+  PriceValues currentPrice(String productId) {
+    final product = item(productId);
+    return PriceValues(
+      priceUnit: product.priceUnit,
+      priceWholesale: product.priceWholesale,
+      wholesaleMinQty: product.wholesaleMinQty,
+      commissionPct: product.commissionPct,
+      cost: _prices[productId]?.cost,
+    );
+  }
+
+  /// Aplica un cambio aprobado. Si define la comisión, las ventas sin % de ese
+  /// producto la toman; devuelve cuántas fueron.
+  int applyPriceChange(String productId, PriceValues change) {
+    final old = _prices[productId];
+    _prices[productId] = PriceValues(
+      priceUnit: change.priceUnit ?? old?.priceUnit,
+      priceWholesale: change.priceWholesale ?? old?.priceWholesale,
+      wholesaleMinQty: change.wholesaleMinQty ?? old?.wholesaleMinQty,
+      commissionPct: change.commissionPct ?? old?.commissionPct,
+      cost: change.cost ?? old?.cost,
+    );
+    final rate = change.commissionPct;
+    if (rate == null) return 0;
+    var filled = 0;
+    for (final order in _orders) {
+      if (order.status == OrderStatus.cancelled || order.status == OrderStatus.returned) {
+        continue;
+      }
+      if (order.sellerId != null &&
+          order.lines.any((l) => l.productId == productId) &&
+          order.rates[productId] == null) {
+        order.rates[productId] = rate;
+        filled++;
+      }
+    }
+    return filled;
+  }
+
+  /// Lo que se le cobró a las ventas de [sellerId] en el mes de [month].
+  ({int paidSales, Money rated, bool ratesPending, Money adjustments}) commissionsOf(
+    String sellerId,
+    DateTime month,
+  ) {
+    bool inMonth(DateTime at) => at.year == month.year && at.month == month.month;
+    final earned = [
+      for (final o in _orders)
+        if (o.sellerId == sellerId &&
+            o.payment?.status == PaymentStatus.confirmed &&
+            inMonth(o.payment!.submittedAt ?? o.createdAt))
+          o,
+    ];
+    return (
+      paidSales: earned.length,
+      rated: earned.fold(Money.zero, (sum, o) => sum + (o.commissionAmount ?? Money.zero)),
+      ratesPending: earned.any((o) => o.commissionAmount == null),
+      adjustments: _adjustments
+          .where((a) => a.sellerId == sellerId && inMonth(a.at))
+          .fold(Money.zero, (sum, a) => sum + a.amount),
+    );
+  }
+
+  _DemoOrder _any(String id) {
+    for (final order in _orders) {
+      if (order.id == id) return order;
+    }
+    throw const NotFoundException('No encontramos ese pedido.');
+  }
+
+  _DemoOrder _inReview(String id) {
+    final order = _any(id);
+    if (order.status != OrderStatus.paymentReview ||
+        order.payment?.status != PaymentStatus.submitted) {
+      throw const ConflictException(
+        code: 'already_reviewed',
+        message: 'Este pago ya se revisó.',
+      );
+    }
+    return order;
+  }
+
+  PaymentReview _paymentReview(_DemoOrder o) {
+    final payment = o.payment!;
+    final reference = payment.reference;
+    return PaymentReview(
+      id: o.id,
+      orderId: o.id,
+      orderNumber: 'N-${o.id}',
+      customerName: o.customerName,
+      sellerName: _sellerName(o.sellerId),
+      itemsLabel: o.summary.itemsLabel,
+      orderTotal: o.total,
+      method: payment.method,
+      amount: o.total,
+      status: payment.status,
+      referenceUnique: reference == null || !_referenceUsed(reference, o.id),
+      reference: reference,
+      proofUrl: payment.proofUrl,
+      submittedAt: payment.submittedAt,
+      destinationAccount: 'Traigo',
+      rejectReason: payment.rejectReason,
+    );
+  }
+
+  /// Una referencia no se repite (salvo en pagos rechazados o devueltos).
+  bool _referenceUsed(String reference, String exceptId) => _orders.any(
+        (o) =>
+            o.id != exceptId &&
+            o.payment?.reference == reference &&
+            o.payment!.status != PaymentStatus.rejected &&
+            o.payment!.status != PaymentStatus.reversed,
+      );
+
+  static OrderPayment _withStatus(OrderPayment p, PaymentStatus status, {String? reason}) =>
+      OrderPayment(
+        method: p.method,
+        status: status,
+        reference: p.reference,
+        proofUrl: p.proofUrl,
+        submittedAt: p.submittedAt,
+        rejectReason: reason,
+      );
+
+  static void _requireReason(String reason) {
+    if (reason.trim().isEmpty) {
+      throw const ValidationException(message: 'Escribe el motivo.');
+    }
+  }
+
+  static String? _sellerName(String? sellerId) =>
+      DemoBackend.members.where((m) => m.id == sellerId).firstOrNull?.name;
 
   static void _requireSeller(Member member) {
     if (!member.role.canSell) {
@@ -489,6 +852,7 @@ class DemoSales {
         payment: OrderPayment(
           method: PaymentMethod.qr,
           status: PaymentStatus.submitted,
+          reference: '0045-9001',
           proofUrl: 'demo://comprobantes/comprobante-qr.jpg',
           submittedAt: at(6, 11, 25),
         ),
@@ -598,6 +962,43 @@ class DemoSales {
         deliveredAt: at(4, 15, 30),
         payment: cash(at(4, 10, 15)),
       ),
+      // Dos compras de la web con el comprobante esperando a Jime.
+      _DemoOrder(
+        id: '1037',
+        sellerId: null,
+        createdAt: at(5, 21, 15),
+        origin: OrderOrigin.web,
+        customerName: 'Luisa Vargas',
+        customerPhone: '77665544',
+        method: PaymentMethod.transfer,
+        status: OrderStatus.paymentReview,
+        lines: [line('A226453', 1)],
+        payment: OrderPayment(
+          method: PaymentMethod.transfer,
+          status: PaymentStatus.submitted,
+          reference: 'TR-558201',
+          proofUrl: 'demo://comprobantes/transferencia-1037.jpg',
+          submittedAt: at(5, 21, 20),
+        ),
+      ),
+      _DemoOrder(
+        id: '1036',
+        sellerId: null,
+        createdAt: at(5, 20, 5),
+        origin: OrderOrigin.web,
+        customerName: 'Jorge Peña',
+        customerPhone: '70998877',
+        method: PaymentMethod.qr,
+        status: OrderStatus.paymentReview,
+        lines: [line('A222840', 2)],
+        payment: OrderPayment(
+          method: PaymentMethod.qr,
+          status: PaymentStatus.submitted,
+          reference: '0045-8812',
+          proofUrl: 'demo://comprobantes/comprobante-1036.jpg',
+          submittedAt: at(5, 20, 10),
+        ),
+      ),
       _DemoOrder(
         id: '1038',
         sellerId: '4',
@@ -639,7 +1040,8 @@ class _DemoOrder {
     this.paidAt,
     this.readyAt,
     this.deliveredAt,
-  });
+    Map<String, double?> rates = const {},
+  }) : rates = {...rates};
 
   final String id;
 
@@ -656,9 +1058,27 @@ class _DemoOrder {
   final List<OrderLine> lines;
   OrderPayment? payment;
   final DateTime? promisedAt;
-  final DateTime? paidAt;
+  DateTime? paidAt;
   DateTime? readyAt;
   DateTime? deliveredAt;
+
+  /// % de comisión de cada producto al vender (`null` = sin definir).
+  final Map<String, double?> rates;
+
+  String? voidReason;
+  String? duplicateOfId;
+  DateTime? voidedAt;
+
+  /// La comisión del pedido, o `null` mientras falte el % de algún producto.
+  Money? get commissionAmount {
+    var total = Money.zero;
+    for (final line in lines) {
+      final rate = rates[line.productId];
+      if (rate == null) return null;
+      total = total + line.total.percent(rate / 100);
+    }
+    return total;
+  }
 
   Money get total => lines.fold(Money.zero, (sum, l) => sum + l.total);
 
@@ -701,14 +1121,15 @@ class _DemoOrder {
           TimelineStep(status: OrderStatus.ready, at: readyAt),
           TimelineStep(status: OrderStatus.delivered, at: deliveredAt),
         ],
-        // El % de comisión todavía no está definido: el monto va nulo.
+        // Mientras falte el % de algún producto, el monto va nulo.
         commission: OrderCommission(
           // Se gana cuando Jime confirma el cobro (el efectivo, con la caja).
-          status: status == OrderStatus.cancelled
+          status: status == OrderStatus.cancelled || status == OrderStatus.returned
               ? CommissionStatus.cancelled
               : (payment?.status == PaymentStatus.confirmed
                   ? CommissionStatus.earned
                   : CommissionStatus.pending),
+          amount: commissionAmount,
         ),
         canCancel: canCancel,
         canUploadProof: canUploadProof,

@@ -66,7 +66,10 @@ class StockScreen extends ConsumerWidget {
                     style: AppText.body(15, FontWeight.w400, color: AppColors.muted),
                   ),
                 ]
-              : [for (final count in data) _CountRow(count)],
+              : [
+                  for (final count in data)
+                    CountRow(count, onTap: () => context.go(AppRoutes.count(count.id))),
+                ],
           loading: () => const [SkeletonBlock(height: 70)],
           error: (error, _) => [
             ErrorPanel(
@@ -88,17 +91,18 @@ String countSummary(InventoryCount count) {
   return '$products · $different con diferencia';
 }
 
-class _CountRow extends StatelessWidget {
-  const _CountRow(this.count);
+class CountRow extends StatelessWidget {
+  const CountRow(this.count, {super.key, required this.onTap});
 
   final InventoryCount count;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final date = weekdayDate(count.countedOn);
     final pending = count.items.where((i) => i.needsAdjustment).length;
     return OpenRow(
-      onTap: () => context.go(AppRoutes.count(count.id)),
+      onTap: onTap,
       children: [
         Text('${date[0].toUpperCase()}${date.substring(1)}',
             style: AppText.body(15, FontWeight.w600)),

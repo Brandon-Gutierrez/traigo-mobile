@@ -125,6 +125,28 @@ class SystemStatus {
   final DateTime? restoreTestedAt;
 }
 
+/// Una cuenta del equipo, para reponer su PIN o cerrar sus sesiones.
+class TeamAccount {
+  const TeamAccount({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.title,
+  });
+
+  factory TeamAccount.fromJson(Json json) => TeamAccount(
+        id: json.str('id'),
+        code: json.str('code'),
+        name: json.str('name'),
+        title: json.str('title'),
+      );
+
+  final String id;
+  final String code;
+  final String name;
+  final String title;
+}
+
 enum ReportType {
   /// KPI, bonos, cierre y pagos de una semana (`period`: número de semana).
   week('week'),
@@ -151,6 +173,9 @@ abstract interface class AdminRepository {
   Future<List<int>> downloadReport(ReportType type, {required String period});
 
   Future<SystemStatus> systemStatus();
+
+  /// Las cuentas del equipo (sin Jime ni Dirección).
+  Future<List<TeamAccount>> members();
 
   /// Para quien olvidó su PIN. Cierra sus sesiones.
   Future<void> resetPin(String memberId, String newPin);

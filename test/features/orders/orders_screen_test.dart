@@ -78,13 +78,13 @@ void main() {
 
     expect(picker.sources, [PhotoSource.gallery]);
     expect(find.text('Revisa la foto'), findsOneWidget);
-    await tester.enterText(field('Número de referencia (opcional)'), '0045-8812');
+    await tester.enterText(field('Número de referencia (opcional)'), '0045-7710');
     await tester.tap(find.text('Enviar a Jime'));
     await tester.pumpAndSettle();
 
     expect(find.text('Comprobante enviado. Jime lo va a revisar.'), findsOneWidget);
     expect(find.text('foto.jpg'), findsOneWidget);
-    expect(find.text('0045-8812'), findsOneWidget);
+    expect(find.text('0045-7710'), findsOneWidget);
   });
 
   testWidgets('si se arrepiente de la foto, no cambia nada', (tester) async {

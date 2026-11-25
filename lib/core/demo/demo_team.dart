@@ -6,6 +6,8 @@
 library;
 
 import '../../features/auth/domain/auth.dart';
+import '../../features/control/domain/payouts.dart';
+import '../../features/control/domain/review.dart';
 import '../../features/home/domain/home.dart';
 import '../../features/orders/domain/orders.dart';
 import '../../features/team/domain/bonus.dart';
@@ -23,6 +25,7 @@ class DemoTeam {
       for (final (index, kpi) in profile.kpis.indexed) {
         final id = '$memberId-${index + 1}';
         _evidence[id] = _seedEvidence(id, kpi.evidence);
+        _actuals[id] = kpi.actual;
       }
     }
   }
@@ -32,6 +35,31 @@ class DemoTeam {
 
   /// Por resultado semanal, lo más nuevo primero.
   final Map<String, List<Evidence>> _evidence = {};
+
+  /// Los valores reales que carga Jime.
+  final Map<String, double?> _actuals = {};
+
+  /// Quienes Jime cerró a mano como «no cumple», con su motivo.
+  Map<String, String> closedReasons = {};
+
+  /// Dirección ya autorizó la semana: nada cambia.
+  bool weekAuthorized = false;
+
+  /// Cuándo se envió cada entrega que espera a Jime.
+  final Map<String, DateTime> _deliverableSentAt = {'d-2': DateTime(2026, 12, 5, 12, 0)};
+
+  /// La semana de esta persona todavía admite envíos.
+  bool _acceptsEvidence(String memberId) =>
+      !weekAuthorized && !closedReasons.containsKey(memberId);
+
+  void _requireOpenWeek(String memberId) {
+    if (!_acceptsEvidence(memberId)) {
+      throw const ConflictException(
+        code: 'week_closed',
+        message: 'Esta semana ya se cerró.',
+      );
+    }
+  }
   late final Map<String, List<Deliverable>> _deliverables = _seedDeliverables();
 
   /// Envíos ya recibidos, por su clave contra duplicados.
@@ -56,17 +84,31 @@ class DemoTeam {
             approved: deliverables.where((d) => d.status == DeliverableStatus.onTime).length,
             total: deliverables.length,
           );
+    final closedReason = closedReasons[memberId];
     return MyKpi(
       scorePercent: KpiRules.scorePercent(indicators),
       minimumPercent: profile.minimumPercent,
-      compliance: KpiRules.compliance(
-        indicators,
-        minimumPercent: profile.minimumPercent,
-        deliverablesApproved: progress?.complete ?? true,
-      ),
+      compliance: closedReason != null
+          ? Compliance.fails
+          : KpiRules.compliance(
+              indicators,
+              minimumPercent: profile.minimumPercent,
+              deliverables: _deliverablesState(deliverables ?? const []),
+            ),
       indicators: indicators,
       deliverables: progress,
+      closedReason: closedReason,
     );
+  }
+
+  /// Pendiente mientras alguna esté sin entregar o sin revisar; con todas
+  /// resueltas, cumple solo si todas llegaron a tiempo.
+  static Compliance _deliverablesState(List<Deliverable> list) {
+    const waiting = {DeliverableStatus.pending, DeliverableStatus.inReview};
+    if (list.any((d) => waiting.contains(d.status))) return Compliance.pending;
+    return list.every((d) => d.status == DeliverableStatus.onTime)
+        ? Compliance.passes
+        : Compliance.fails;
   }
 
   MyWeek myWeek(Member member, {int? weekNumber}) {
@@ -86,7 +128,8 @@ class DemoTeam {
       compliance: kpi.compliance,
       indicators: _indicators(member.id),
       deliverables: List.unmodifiable(_deliverables[member.id] ?? const []),
-      acceptsEvidence: true,
+      acceptsEvidence: _acceptsEvidence(member.id),
+      closedReason: closedReasons[member.id],
     );
   }
 
@@ -133,6 +176,8 @@ class DemoTeam {
     _requireTeam(member);
     final repeated = _sentEvidence[evidence.clientUuid];
     if (repeated != null) return repeated;
+
+    _requireOpenWeek(member.id);
 
     final indicator = _indicators(member.id).where((i) => i.indicator.id == resultId);
     if (indicator.isEmpty) {
@@ -196,6 +241,8 @@ class DemoTeam {
     final repeated = _sentDeliverables[clientUuid];
     if (repeated != null) return repeated;
 
+    _requireOpenWeek(member.id);
+
     final list = _deliverables[member.id] ?? const <Deliverable>[];
     final index = list.indexWhere((d) => d.id == id);
     if (index < 0) {
@@ -229,7 +276,217 @@ class DemoTeam {
     );
     _deliverables[member.id]![index] = saved;
     _sentDeliverables[clientUuid] = saved;
+    _deliverableSentAt[id] = _now();
     return saved;
+  }
+
+  // ─────────────────────────────────────────────────────── para el panel de Jime
+
+  /// Los 6 integrantes, en el orden de la app.
+  static List<Member> get teamMembers =>
+      DemoBackend.members.where((m) => !m.role.isControlSide).toList();
+
+  /// Indicadores con evidencia esperando, del más antiguo al más nuevo.
+  List<PendingItem> pendingEvidence() => [
+        for (final member in teamMembers)
+          for (final item in _indicators(member.id))
+            if (item.indicator.evidence == EvidenceStatus.inReview)
+              PendingItem(
+                type: PendingType.evidence,
+                id: item.indicator.id,
+                title: '${member.name} · ${item.indicator.name}',
+                subtitle: _evidenceSummary(item),
+                createdAt: item.evidence
+                    .where((e) => e.status == EvidenceStatus.inReview)
+                    .map((e) => e.submittedAt)
+                    .reduce((a, b) => a.isBefore(b) ? a : b),
+              ),
+      ];
+
+  static String _evidenceSummary(WeekIndicator item) {
+    final count = item.evidence.where((e) => e.status == EvidenceStatus.inReview).length;
+    final target = item.indicator.target;
+    final meta = target == target.roundToDouble() ? '${target.round()}' : '$target';
+    return '$count ${count == 1 ? 'evidencia' : 'evidencias'} · meta $meta';
+  }
+
+  EvidenceReview evidenceReview(String resultId) {
+    final (member, item) = _findResult(resultId);
+    return EvidenceReview(
+      resultId: resultId,
+      memberId: member.id,
+      memberName: member.name,
+      weekLabel: DemoBackend.week.label,
+      indicator: item.indicator,
+      howVerified: item.howVerified,
+      unit: item.unit,
+      evidence: item.evidence,
+    );
+  }
+
+  /// Carga el valor real y valida la evidencia que esperaba.
+  EvidenceReview validateResult(String resultId, double actual) {
+    _requireUnauthorized();
+    if (actual < 0) {
+      throw const ValidationException(message: 'El valor real no puede ser negativo.');
+    }
+    _findResult(resultId);
+    _actuals[resultId] = actual;
+    _evidence[resultId] = [
+      for (final e in _evidence[resultId]!)
+        e.status == EvidenceStatus.inReview ? _reviewed(e, EvidenceStatus.validated) : e,
+    ];
+    return evidenceReview(resultId);
+  }
+
+  EvidenceReview observeResult(String resultId, String note) {
+    _requireUnauthorized();
+    if (note.trim().isEmpty) {
+      throw const ValidationException(message: 'Escribe qué falta.');
+    }
+    final (_, item) = _findResult(resultId);
+    if (item.indicator.evidence != EvidenceStatus.inReview) {
+      throw const ConflictException(
+        code: 'already_reviewed',
+        message: 'No hay evidencia esperando revisión.',
+      );
+    }
+    _evidence[resultId] = [
+      for (final e in _evidence[resultId]!)
+        e.status == EvidenceStatus.inReview
+            ? _reviewed(e, EvidenceStatus.observed, note.trim())
+            : e,
+    ];
+    return evidenceReview(resultId);
+  }
+
+  static Evidence _reviewed(Evidence e, EvidenceStatus status, [String? note]) => Evidence(
+        id: e.id,
+        kind: e.kind,
+        status: status,
+        submittedAt: e.submittedAt,
+        url: e.url,
+        orderId: e.orderId,
+        orderNumber: e.orderNumber,
+        note: e.note,
+        reviewNote: note,
+      );
+
+  (Member, WeekIndicator) _findResult(String resultId) {
+    for (final member in teamMembers) {
+      for (final item in _indicators(member.id)) {
+        if (item.indicator.id == resultId) return (member, item);
+      }
+    }
+    throw const NotFoundException('No encontramos ese indicador.');
+  }
+
+  void _requireUnauthorized() {
+    if (weekAuthorized) {
+      throw const ConflictException(
+        code: 'week_closed',
+        message: 'La semana ya está autorizada: no se puede cambiar.',
+      );
+    }
+  }
+
+  /// Las 8 entregas.
+  List<Deliverable> allDeliverables() =>
+      [for (final list in _deliverables.values) ...list];
+
+  List<PendingItem> pendingDeliverables() => [
+        for (final d in allDeliverables())
+          if (d.status == DeliverableStatus.inReview)
+            PendingItem(
+              type: PendingType.deliverable,
+              id: d.id,
+              title: d.memberName!,
+              subtitle: d.title,
+              createdAt: _deliverableSentAt[d.id] ?? d.deliveredOn!,
+            ),
+      ];
+
+  /// Jime comprueba la fecha real: de ella sale «a tiempo» o «fuera de plazo».
+  Deliverable validateDeliverable(String id, DateTime deliveredOn) {
+    if (deliveredOn.isAfter(DemoBackend.today)) {
+      throw const ValidationException(message: 'La fecha real no puede ser futura.');
+    }
+    return _reviewDeliverable(
+      id,
+      (d) => deliveredOn.isAfter(d.dueOn) ? DeliverableStatus.late : DeliverableStatus.onTime,
+      deliveredOn: deliveredOn,
+    );
+  }
+
+  Deliverable rejectDeliverable(String id, String note) {
+    if (note.trim().isEmpty) {
+      throw const ValidationException(message: 'Escribe qué falta.');
+    }
+    return _reviewDeliverable(id, (_) => DeliverableStatus.notValidated, note: note.trim());
+  }
+
+  Deliverable _reviewDeliverable(
+    String id,
+    DeliverableStatus Function(Deliverable d) status, {
+    DateTime? deliveredOn,
+    String? note,
+  }) {
+    _requireUnauthorized();
+    for (final list in _deliverables.values) {
+      final index = list.indexWhere((d) => d.id == id);
+      if (index < 0) continue;
+      final current = list[index];
+      if (current.status != DeliverableStatus.inReview) {
+        throw const ConflictException(
+          code: 'already_reviewed',
+          message: 'Esa entrega no está esperando revisión.',
+        );
+      }
+      return list[index] = Deliverable(
+        id: current.id,
+        title: current.title,
+        acceptanceTest: current.acceptanceTest,
+        dueOn: current.dueOn,
+        status: status(current),
+        memberId: current.memberId,
+        memberName: current.memberName,
+        deliveredOn: deliveredOn ?? current.deliveredOn,
+        evidenceUrl: current.evidenceUrl,
+        reviewNote: note,
+      );
+    }
+    throw const NotFoundException('No encontramos esa entrega.');
+  }
+
+  /// La semana de cualquier integrante, para que Jime cargue sus valores.
+  MyWeek weekOf(String memberId) {
+    final member = teamMembers.where((m) => m.id == memberId).firstOrNull;
+    if (member == null) throw const NotFoundException('No encontramos a esa persona.');
+    return myWeek(member);
+  }
+
+  List<ComplianceRow> compliance() => [
+        for (final member in teamMembers) _complianceRow(member),
+      ];
+
+  ComplianceRow _complianceRow(Member member) {
+    final kpi = kpiOf(member.id);
+    final deliverables = kpi.deliverables;
+    final loaded = kpi.indicators.where((i) => i.actual != null).length;
+    return ComplianceRow(
+      id: member.id,
+      name: member.name,
+      title: member.title,
+      scorePercent: loaded == kpi.indicators.length ? kpi.scorePercent : null,
+      partialScorePercent: kpi.scorePercent,
+      minimumPercent: kpi.minimumPercent,
+      compliance: kpi.compliance,
+      indicatorsLoaded: loaded,
+      indicatorsTotal: kpi.indicators.length,
+      deliverablesOnTime: deliverables?.approved,
+      deliverablesTotal: deliverables?.total,
+      closedReason: kpi.closedReason,
+    );
   }
 
   /// Entregas enviadas que Jime todavía no valida.
@@ -250,7 +507,7 @@ class DemoTeam {
         id: id,
         name: kpi.name,
         target: kpi.target,
-        actual: kpi.actual,
+        actual: _actuals[id],
         weight: kpi.weight,
         // El estado del indicador es el de la evidencia más reciente.
         evidence: evidence.isEmpty ? EvidenceStatus.missing : evidence.first.status,

@@ -21,7 +21,6 @@ import '../../auth/presentation/auth_frame.dart' show FormError;
 import '../../orders/domain/orders.dart';
 import '../../orders/presentation/order_widgets.dart';
 import '../application/team_providers.dart';
-import '../domain/kpi.dart';
 import '../domain/my_week.dart';
 import 'order_picker_sheet.dart';
 import 'submit_errors.dart';
@@ -167,24 +166,14 @@ class _SentEvidence extends StatelessWidget {
   final Evidence evidence;
   final DateTime today;
 
-  static String _title(Evidence e) => switch (e.kind) {
-        EvidenceKind.photo => e.url == null ? 'Foto' : attachmentName(e.url!),
-        EvidenceKind.link => e.url?.replaceFirst(RegExp(r'^https?://'), '') ?? 'Enlace',
-        EvidenceKind.order => 'Pedido ${e.orderNumber ?? ''}'.trim(),
-      };
-
   @override
   Widget build(BuildContext context) {
     final muted = AppText.body(12.5, FontWeight.w400, color: AppColors.muted, height: 1.3);
-    final (kind, text) = switch (evidence.status) {
-      EvidenceStatus.validated => (MarkKind.ok, 'Validada'),
-      EvidenceStatus.observed => (MarkKind.bad, 'Observada'),
-      EvidenceStatus.inReview || EvidenceStatus.missing => (MarkKind.pending, 'En revisión'),
-    };
+    final (kind, text) = evidenceStatusMark(evidence.status);
     return AttachmentRow(
       kind: evidence.kind,
       url: evidence.url,
-      title: _title(evidence),
+      title: evidenceTitle(evidence),
       children: [
         const SizedBox(height: 2),
         Text('Enviada ${longDate(evidence.submittedAt, today)}', style: muted),

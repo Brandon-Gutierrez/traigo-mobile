@@ -23,6 +23,37 @@ abstract final class AppRoutes {
   static const approve = '/approve';
   static const more = '/more';
 
+  /// Cumplimiento, desde el Resumen: la semana de cada integrante y la
+  /// evidencia de un indicador suyo.
+  static const compliance = '$summary/compliance';
+  static String complianceMember(String memberId) => '$compliance/$memberId';
+  static String complianceIndicator(String memberId, String resultId) =>
+      '${complianceMember(memberId)}/indicator/$resultId';
+
+  /// La bandeja de Jime y cada cosa por revisar.
+  static String pendingOfType(String type) => '$pending?type=$type';
+  static String pendingPayment(String id) => '$pending/payment/$id';
+  static String pendingEvidence(String resultId) => '$pending/evidence/$resultId';
+  static String pendingCash(String id) => '$pending/cash/$id';
+  static const pendingDeliverables = '$pending/deliverables';
+  static String pendingDeliverable(String id) => '$pendingDeliverables/$id';
+
+  /// Lo que hay dentro de «Más».
+  static const moreDeliverables = '$more/deliverables';
+  static String moreDeliverable(String id) => '$moreDeliverables/$id';
+  static const morePrices = '$more/prices';
+  static String morePrice(String productId) => '$morePrices/$productId';
+  static const moreCommissions = '$more/commissions';
+  static const moreCounts = '$more/counts';
+  static String moreCount(String id) => '$moreCounts/$id';
+  static const moreOrders = '$more/orders';
+  static String moreOrder(String id) => '$moreOrders/$id';
+  static const moreAudit = '$more/audit';
+  static const moreAccess = '$more/access';
+
+  /// Una autorización de Dirección.
+  static String authorization(String type, String id) => '$approve/$type/$id';
+
   // Pantallas dentro de una pestaña
   static String product(String id) => '$catalog/$id';
   static const sellAdd = '$sell/add';

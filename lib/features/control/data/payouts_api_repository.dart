@@ -21,15 +21,11 @@ class PayoutsApiRepository implements PayoutsRepository {
   @override
   Future<WeeklyClosing> sendWeeklyClosing(
     int weekNumber, {
-    required bool paymentsReconciled,
-    required bool kpiEvidenceOk,
     required bool duplicatesCleared,
     Map<String, String> closePending = const {},
     String? observations,
   }) async =>
       _closing(await _api.post(ApiPaths.controlWeeklyClosingSend(weekNumber), body: {
-        'payments_reconciled': paymentsReconciled,
-        'kpi_evidence_ok': kpiEvidenceOk,
         'duplicates_cleared': duplicatesCleared,
         'close_pending': [
           for (final MapEntry(key: memberId, value: reason) in closePending.entries)

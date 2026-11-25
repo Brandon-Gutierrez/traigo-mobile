@@ -22,6 +22,7 @@ import '../../team/presentation/submit_errors.dart';
 import '../../team/presentation/week_widgets.dart' show OpenRow, SideNote;
 import '../application/warehouse_providers.dart';
 import '../domain/warehouse.dart';
+import 'cash_table.dart';
 
 /// El cierre de caja de todo el equipo: lo cobrado según los pedidos contra lo
 /// recibido, para enviarlo a Jime. [date] es un día anterior; `null`, hoy.
@@ -110,28 +111,20 @@ class CashScreen extends ConsumerWidget {
           // Otro día, u observado de nuevo: formulario nuevo.
           key: ValueKey((day.businessDate, day.status)),
           day: day,
-          beforeSending: _pendingSection(day),
+          beforeSending: pendingCollections(day),
           onSent: () {
             if (!isToday) context.go(AppRoutes.cash);
           },
         )
       else ...[
-        _SentLines(day),
-        ..._pendingSection(day),
+        SentCashLines(day),
+        ...pendingCollections(day),
       ],
       const SizedBox(height: 10),
       Text('Jime valida el cierre; cuenta para tu KPI «Cierre de caja diaria».', style: muted),
     ];
   }
 }
-
-List<Widget> _pendingSection(CashDay day) => [
-      if (day.pending.isNotEmpty) ...[
-        const SizedBox(height: 14),
-        const SectionHeader('Pendiente de cobro'),
-        for (final pending in day.pending) _Pending(pending),
-      ],
-    ];
 
 class _PendingDays extends StatelessWidget {
   const _PendingDays(this.days);
@@ -207,137 +200,6 @@ class _CollectedCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Método · Pedidos (según el sistema) · Recibido.
-class _LineRow extends StatelessWidget {
-  const _LineRow({required this.method, required this.expected, required this.received, this.mark});
-
-  final String method;
-  final Widget expected;
-  final Widget received;
-  final Widget? mark;
-
-  @override
-  Widget build(BuildContext context) {
-    final mark = this.mark;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.rule, width: 2)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 11,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(method, style: AppText.body(15, FontWeight.w600)),
-                if (mark != null) ...[const SizedBox(height: 2), mark],
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            flex: 7,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: expected,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(flex: 9, child: received),
-        ],
-      ),
-    );
-  }
-}
-
-Widget _header() => Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 4),
-      child: Row(
-        children: [
-          Expanded(flex: 11, child: Text('MÉTODO', style: AppText.label())),
-          const SizedBox(width: 6),
-          Expanded(
-            flex: 7,
-            child: Text('PEDIDOS', textAlign: TextAlign.right, style: AppText.label()),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 9,
-            child: Text('RECIBIDO', textAlign: TextAlign.right, style: AppText.label()),
-          ),
-        ],
-      ),
-    );
-
-Widget _mark(Money difference) => StatusMark(
-      difference.isZero ? MarkKind.ok : MarkKind.bad,
-      difference.isZero ? 'Cuadra' : 'Diferencia',
-    );
-
-/// `+Bs 20`, `−Bs 50` o `Bs 0`.
-String _signed(Money difference) =>
-    '${difference > Money.zero ? '+' : ''}${difference.format()}';
-
-/// `null` mientras falte algún monto.
-Widget _totalDifference(Money? difference) => Container(
-      padding: const EdgeInsets.only(top: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.ink, width: 2)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('Diferencia del día', style: AppText.body(15, FontWeight.w700)),
-          ),
-          Text(
-            difference == null ? '—' : _signed(difference),
-            style: AppText.mono(
-              15,
-              weight: FontWeight.w700,
-              color: difference == null || difference.isZero ? AppColors.ink : AppColors.alert,
-            ),
-          ),
-        ],
-      ),
-    );
-
-class _SentLines extends StatelessWidget {
-  const _SentLines(this.day);
-
-  final CashDay day;
-
-  @override
-  Widget build(BuildContext context) {
-    final note = day.note;
-    final difference = day.lines.fold(Money.zero, (sum, l) => sum + (l.difference ?? Money.zero));
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _header(),
-        for (final line in day.lines)
-          _LineRow(
-            method: line.method.label,
-            mark: line.difference == null ? null : _mark(line.difference!),
-            expected: Text(line.expected.format(symbol: false), style: AppText.mono(13.5)),
-            received: Text(
-              line.counted?.format(symbol: false) ?? '—',
-              textAlign: TextAlign.right,
-              style: AppText.mono(13.5, weight: FontWeight.w700),
-            ),
-          ),
-        _totalDifference(difference),
-        if (note != null) ...[
-          const SizedBox(height: 8),
-          SideNote('Explicación: $note'),
-        ],
-      ],
     );
   }
 }
@@ -500,13 +362,13 @@ class _ClosingFormState extends ConsumerState<_ClosingForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _header(),
+        cashTableHeader(),
         for (final line in widget.day.lines)
-          _LineRow(
+          CashLineRow(
             method: line.method.label,
             mark: _amount(line.method) == null
                 ? null
-                : _mark(_amount(line.method)! - line.expected),
+                : cashMark(_amount(line.method)! - line.expected),
             expected: Text(line.expected.format(symbol: false), style: AppText.mono(13.5)),
             received: Semantics(
               key: ValueKey('cash-${line.method.apiValue}'),
@@ -534,7 +396,7 @@ class _ClosingFormState extends ConsumerState<_ClosingForm> {
               ),
             ),
           ),
-        _totalDifference(_difference),
+        cashDifferenceRow(_difference),
         ...widget.beforeSending,
         const SizedBox(height: 12),
         LabeledField(
@@ -554,44 +416,6 @@ class _ClosingFormState extends ConsumerState<_ClosingForm> {
           busy: _busy,
         ),
       ],
-    );
-  }
-}
-
-class _Pending extends StatelessWidget {
-  const _Pending(this.pending);
-
-  final PendingCollection pending;
-
-  @override
-  Widget build(BuildContext context) {
-    final seller = pending.sellerName;
-    final detail = pending.detail;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (seller == null ? pending.number : '${pending.number} · $seller')
-                      .toUpperCase(),
-                  style: AppText.mono(11.5, color: AppColors.muted),
-                ),
-                Text(pending.customerName, style: AppText.body(15, FontWeight.w600)),
-                Text(
-                  detail == null ? pending.method.label : '${pending.method.label} · $detail',
-                  style: AppText.body(13, FontWeight.w400, color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(pending.total.format(), style: AppText.display(17)),
-        ],
-      ),
     );
   }
 }

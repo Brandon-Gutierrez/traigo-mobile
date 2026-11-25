@@ -44,6 +44,12 @@ class AdminApiRepository implements AdminRepository {
   }
 
   @override
+  Future<List<TeamAccount>> members() async {
+    final json = await _api.get(ApiPaths.controlMembers);
+    return json.list('data').map(TeamAccount.fromJson).toList();
+  }
+
+  @override
   Future<void> resetPin(String memberId, String newPin) =>
       _api.postNoContent(ApiPaths.controlMemberPin(memberId), body: {'pin': newPin});
 

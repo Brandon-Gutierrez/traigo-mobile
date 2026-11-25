@@ -1,8 +1,10 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_paths.dart';
+import '../../../core/network/paged_result.dart';
 import '../../team/data/team_api_repository.dart' show apiDate;
 import '../../team/domain/my_week.dart';
 import '../../warehouse/domain/warehouse.dart';
+import '../domain/control_orders.dart';
 import '../domain/review.dart';
 
 class ReviewApiRepository implements ReviewRepository {
@@ -100,6 +102,31 @@ class ReviewApiRepository implements ReviewRepository {
         ApiPaths.controlOrderDuplicate(orderId),
         body: {'original_order_id': originalOrderId},
       );
+
+  @override
+  Future<PagedResult<ControlOrderSummary>> orders({String? search, int page = 1}) async {
+    final query = search?.trim() ?? '';
+    final json = await _api.get(
+      ApiPaths.controlOrders,
+      query: {if (query.isNotEmpty) 'search': query, 'page': page},
+    );
+    return PagedResult.fromJson(json, ControlOrderSummary.fromJson);
+  }
+
+  @override
+  Future<ControlOrder> order(String id) async {
+    final json = await _api.get(ApiPaths.controlOrder(id));
+    return ControlOrder.fromJson(json.obj('data'));
+  }
+
+  @override
+  Future<MyWeek> memberWeek(String memberId, {int? weekNumber}) async {
+    final json = await _api.get(
+      ApiPaths.controlMemberWeek(memberId),
+      query: {'week': ?weekNumber},
+    );
+    return MyWeek.fromJson(json.obj('data'));
+  }
 
   PaymentReview _payment(Json json) => PaymentReview.fromJson(json.obj('data'));
   EvidenceReview _evidence(Json json) => EvidenceReview.fromJson(json.obj('data'));

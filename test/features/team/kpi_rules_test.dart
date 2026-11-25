@@ -44,8 +44,16 @@ void main() {
   test('con entregas sin validar queda pendiente aunque el puntaje alcance', () {
     final list = [indicator(1, 1, 1)];
     expect(
-      KpiRules.compliance(list, minimumPercent: 90, deliverablesApproved: false),
+      KpiRules.compliance(list, minimumPercent: 90, deliverables: Compliance.pending),
       Compliance.pending,
+    );
+  });
+
+  test('con una entrega tarde o sin validar no cumple aunque el puntaje alcance', () {
+    final list = [indicator(1, 1, 1)];
+    expect(
+      KpiRules.compliance(list, minimumPercent: 90, deliverables: Compliance.fails),
+      Compliance.fails,
     );
   });
 
