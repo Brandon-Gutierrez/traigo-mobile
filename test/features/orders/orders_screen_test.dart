@@ -139,7 +139,9 @@ void main() {
 
     expect(find.text('Subir comprobante'), findsNothing);
     expect(find.text('Cancelar pedido'), findsNothing);
-    expect(find.text('Jime confirmó el pago.'), findsOneWidget);
+    expect(find.text('Jime confirma el efectivo cuando valida la caja del día.'),
+        findsOneWidget);
+    expect(find.text('PAGADO EN EFECTIVO'), findsOneWidget);
   });
 
   testWidgets('desde el Inicio se abre una venta de hoy', (tester) async {

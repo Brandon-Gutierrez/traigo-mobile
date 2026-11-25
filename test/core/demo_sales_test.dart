@@ -28,6 +28,7 @@ void main() {
     PaymentMethod method = PaymentMethod.qr,
     OrderOrigin origin = OrderOrigin.wholesale,
     String name = 'Comercio El Hogar',
+    DateTime? promisedAt,
   }) =>
       NewSale(
         clientUuid: key,
@@ -38,6 +39,7 @@ void main() {
         paymentMethod: method,
         lines: [for (final (code, qty) in lines) (productId: 'p-$code', quantity: qty)],
         expectedTotal: Money.parse(total ?? '1968'),
+        promisedAt: promisedAt ?? DateTime(2026, 12, 6, 18),
       );
 
   Matcher conflict(String code) =>
@@ -121,7 +123,30 @@ void main() {
     test('la venta nueva aparece en el Inicio de quien la hizo', () {
       backend.sales.create(kim, sale());
       backend.login('KIM-05', '1234');
-      expect(backend.home().todaySales.map((s) => s.id), ['1047', '1043']);
+      expect(backend.home().todaySales.map((s) => s.id), ['1047', '1044', '1042', '1043']);
+    });
+
+    test('la entrega acordada no puede haber pasado (con 30 minutos de margen)', () {
+      expect(
+        () => backend.sales.create(kim, sale(promisedAt: DateTime(2026, 12, 6, 11, 59))),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'promised_in_past')),
+      );
+      final order =
+          backend.sales.create(kim, sale(promisedAt: DateTime(2026, 12, 6, 12, 5)));
+      expect(order.promisedAt, DateTime(2026, 12, 6, 12, 5));
+    });
+
+    test('en efectivo queda pagada: almacén la entrega y ya no se cancela', () {
+      final order = backend.sales.create(alison, sale(method: PaymentMethod.cash));
+
+      expect(order.summary.status, OrderStatus.paid);
+      expect(order.canCancel, isFalse);
+      expect(order.payment?.status, PaymentStatus.submitted, reason: 'falta Jime');
+      expect(order.commission?.status, CommissionStatus.pending);
+      expect(backend.sales.dispatchQueue().map((d) => d.orderId), contains('1047'));
+      expect(() => backend.sales.cancel(alison, order.summary.id),
+          conflict('not_cancellable'));
     });
   });
 
@@ -133,8 +158,8 @@ void main() {
     });
 
     test('«Pagados» incluye los listos para entregar', () {
-      expect(backend.sales.orders(kim, filter: OrderFilter.paid).items.single.status,
-          OrderStatus.ready);
+      expect(backend.sales.orders(kim, filter: OrderFilter.paid).items.map((o) => o.status),
+          [OrderStatus.paid, OrderStatus.ready]);
     });
 
     test('cancelar devuelve el stock; un pagado ya no se cancela', () {
@@ -175,6 +200,8 @@ void main() {
       final order = backend.sales.create(alison, sale(method: PaymentMethod.cash));
       expect(order.canUploadProof, isFalse);
       expect(order.payment?.status, PaymentStatus.submitted);
+      expect(() => backend.sales.uploadProof(alison, order.summary.id, filename: 'x.jpg'),
+          conflict('already_reviewed'));
     });
   });
 }

@@ -143,6 +143,9 @@ const cashDayJson = {
       'detail': 'sin comprobante',
     },
   ],
+  'pending_days': [
+    {'date': '2026-11-30', 'status': 'observed'},
+  ],
   'closed_by_name': 'Isaí',
   'sent_at': '2026-12-01T18:30:00-04:00',
   'note': 'Faltan Bs 50 de cambio, se revisa mañana.',
@@ -164,7 +167,14 @@ const inventoryCountJson = {
   'id': 'ic-1',
   'counted_on': '2026-12-04',
   'items': [
-    {'product_id': 'p-8109', 'item_code': '8109', 'system_qty': 38, 'counted_qty': 36},
+    {
+      'product_id': 'p-8109',
+      'item_code': '8109',
+      'name': 'Tomatodos de Ronaldo',
+      'system_qty': 38,
+      'counted_qty': 36,
+      'adjusted': false,
+    },
   ],
 };
 
@@ -189,6 +199,9 @@ const dispatchesResponse = {
       'number': 'N-1043',
       'customer_name': 'Comercio El Hogar',
       'items_label': 'Tomatodos de Ronaldo × 24',
+      'lines': [
+        {'item_code': '8109', 'name': 'Tomatodos de Ronaldo', 'quantity': 24},
+      ],
       'delivery_type': 'delivery',
       'status': 'paid',
       'is_late': false,
@@ -205,6 +218,7 @@ const stockEntryRequest = {
   'type': 'adjustment_out',
   'quantity': -2,
   'note': 'Conteo del viernes',
+  'inventory_count_id': 'ic-1',
 };
 
 const stockLevelResponse = {

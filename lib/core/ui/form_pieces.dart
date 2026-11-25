@@ -157,6 +157,65 @@ class ChoiceBlocks<T> extends StatelessWidget {
   }
 }
 
+/// Un valor que se elige en otra ventana (fecha, hora): parece un campo y abre
+/// el selector al tocarlo.
+class PickerField extends StatelessWidget {
+  const PickerField({
+    super.key,
+    required this.value,
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+    this.placeholder = false,
+  });
+
+  final String value;
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback? onTap;
+
+  /// Todavía no se eligió: se muestra en gris.
+  final bool placeholder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        color: AppColors.alt,
+        shape: const Border(bottom: BorderSide(color: AppColors.ink, width: 3)),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: placeholder
+                          ? AppText.body(16, FontWeight.w400, color: AppColors.muted)
+                          : AppText.mono(18, weight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(icon, size: 20, color: AppColors.ink),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Etiqueta en mayúsculas sobre su control.
 class Labeled extends StatelessWidget {
   const Labeled(this.label, {super.key, required this.child});

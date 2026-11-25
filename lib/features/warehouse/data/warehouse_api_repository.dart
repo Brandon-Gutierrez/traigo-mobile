@@ -29,6 +29,7 @@ class WarehouseApiRepository implements WarehouseRepository {
     required StockEntryType type,
     required int quantity,
     String? note,
+    String? inventoryCountId,
   }) async {
     final json = await _api.post(
       ApiPaths.stockMovements,
@@ -38,6 +39,7 @@ class WarehouseApiRepository implements WarehouseRepository {
         'type': type.apiValue,
         'quantity': type.signed(quantity),
         'note': note,
+        'inventory_count_id': ?inventoryCountId,
       },
     );
     return StockLevel.fromJson(json.obj('data'));
@@ -46,6 +48,12 @@ class WarehouseApiRepository implements WarehouseRepository {
   @override
   Future<CashDay> cashToday() async {
     final json = await _api.get(ApiPaths.cashToday);
+    return CashDay.fromJson(json.obj('data'));
+  }
+
+  @override
+  Future<CashDay> cashDay(DateTime date) async {
+    final json = await _api.get(ApiPaths.cashDay(apiDate(date)));
     return CashDay.fromJson(json.obj('data'));
   }
 

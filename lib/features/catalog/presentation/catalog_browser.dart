@@ -13,15 +13,30 @@ import '../application/catalog_providers.dart';
 import '../domain/catalog.dart';
 import 'product_art.dart';
 
-/// Buscador, categorías y lista de productos. Lo usan el Catálogo y «Agregar
-/// producto» de la venta.
+/// Qué se muestra de cada producto bajo su nombre.
+enum ProductRowDetail {
+  /// Precios y disponible (catálogo y venta).
+  prices,
+
+  /// Bodega, reservado y disponible (almacén).
+  stock,
+
+  /// Nada: en el conteo no se mira lo que dice el sistema.
+  none,
+}
+
+/// Buscador, categorías y lista de productos. Lo usan el Catálogo, «Agregar
+/// producto» de la venta y almacén.
 class CatalogBrowser extends ConsumerStatefulWidget {
   const CatalogBrowser({
     super.key,
     required this.header,
     required this.onSelect,
     this.noteFor,
+    this.detail = ProductRowDetail.prices,
   });
+
+  final ProductRowDetail detail;
 
   /// Lo que va arriba del buscador (título).
   final List<Widget> header;
@@ -128,6 +143,7 @@ class _CatalogBrowserState extends ConsumerState<CatalogBrowser> {
             _ProductRow(
               item: item,
               note: widget.noteFor?.call(item),
+              detail: widget.detail,
               onTap: () => widget.onSelect(item),
             ),
           if (_pages > 1 && last.hasError) ...[
@@ -156,10 +172,16 @@ class _CatalogBrowserState extends ConsumerState<CatalogBrowser> {
 }
 
 class _ProductRow extends StatelessWidget {
-  const _ProductRow({required this.item, required this.onTap, this.note});
+  const _ProductRow({
+    required this.item,
+    required this.onTap,
+    required this.detail,
+    this.note,
+  });
 
   final CatalogItem item;
   final VoidCallback onTap;
+  final ProductRowDetail detail;
   final String? note;
 
   @override
@@ -186,32 +208,41 @@ class _ProductRow extends StatelessWidget {
                     const SizedBox(height: 1),
                     Text(item.name, style: AppText.body(16, FontWeight.w600, height: 1.15)),
                     const SizedBox(height: 3),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Minorista ',
-                        children: [
-                          TextSpan(
-                            text: item.priceUnit.formatInline(),
-                            style: AppText.body(13, FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                      style: AppText.body(13, FontWeight.w400),
-                    ),
-                    if (wholesale != null)
+                    if (detail == ProductRowDetail.stock)
                       Text(
-                        'Mayorista ${wholesale.formatInline()} desde ${item.wholesaleMinQty} u.',
+                        'En bodega ${item.stock} · reservado ${item.reserved}',
                         style: AppText.body(13, FontWeight.w400, color: AppColors.muted),
                       ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.soldOut ? 'Agotado' : 'Disponible ${item.available}',
-                      style: AppText.body(
-                        13,
-                        FontWeight.w700,
-                        color: item.soldOut ? AppColors.alert : AppColors.violet,
+                    if (detail == ProductRowDetail.prices) ...[
+                      Text.rich(
+                        TextSpan(
+                          text: 'Minorista ',
+                          children: [
+                            TextSpan(
+                              text: item.priceUnit.formatInline(),
+                              style: AppText.body(13, FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                        style: AppText.body(13, FontWeight.w400),
                       ),
-                    ),
+                      if (wholesale != null)
+                        Text(
+                          'Mayorista ${wholesale.formatInline()} desde ${item.wholesaleMinQty} u.',
+                          style: AppText.body(13, FontWeight.w400, color: AppColors.muted),
+                        ),
+                    ],
+                    if (detail != ProductRowDetail.none) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        item.soldOut ? 'Agotado' : 'Disponible ${item.available}',
+                        style: AppText.body(
+                          13,
+                          FontWeight.w700,
+                          color: item.soldOut ? AppColors.alert : AppColors.violet,
+                        ),
+                      ),
+                    ],
                     if (note != null)
                       Text(note, style: AppText.body(13, FontWeight.w600)),
                   ],

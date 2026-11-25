@@ -26,6 +26,7 @@ abstract final class ApiPaths {
 
   // Almacén
   static const cashToday = '/cash/today';
+  static String cashDay(String date) => '/cash/days/$date';
   static const cashClosings = '/cash/closings';
   static const inventoryCounts = '/inventory/counts';
   static const stockMovements = '/inventory/movements';

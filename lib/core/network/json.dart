@@ -2,6 +2,18 @@ import '../money/money.dart';
 
 typedef Json = Map<String, dynamic>;
 
+/// `2026-12-06T18:00:00-04:00`: una hora del celular con su diferencia con UTC,
+/// como la espera el backend.
+String apiDateTime(DateTime local) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final offset = local.timeZoneOffset;
+  final sign = offset.isNegative ? '-' : '+';
+  final minutes = offset.inMinutes.abs();
+  return '${local.year.toString().padLeft(4, '0')}-${two(local.month)}-${two(local.day)}'
+      'T${two(local.hour)}:${two(local.minute)}:${two(local.second)}'
+      '$sign${two(minutes ~/ 60)}:${two(minutes % 60)}';
+}
+
 /// Lectores cortos para armar modelos desde la respuesta del backend.
 extension JsonReaders on Json {
   String str(String key) => this[key] as String;

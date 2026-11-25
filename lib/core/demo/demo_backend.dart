@@ -7,6 +7,7 @@ import '../money/money.dart';
 import '../network/api_exception.dart';
 import 'demo_sales.dart';
 import 'demo_team.dart';
+import 'demo_warehouse.dart';
 
 /// «Servidor» de prueba en memoria. Aplica las mismas reglas que debe aplicar
 /// el backend real (ver docs/api-contract.md), así la app se puede desarrollar
@@ -55,11 +56,14 @@ class DemoBackend {
   /// KPI, evidencia y entregas.
   late final DemoTeam team = DemoTeam(now: _demoNow, sales: sales);
 
-  /// La hora actual, en el día de la demo.
-  DateTime _demoNow() {
-    final time = _clock();
-    return DateTime(today.year, today.month, today.day, time.hour, time.minute, time.second);
-  }
+  /// Caja, despachos, stock y conteos.
+  late final DemoWarehouse warehouse = DemoWarehouse(now: _demoNow, sales: sales);
+
+  /// La hora de [time], en el día de la demo.
+  static DateTime atDemoDay(DateTime time) =>
+      DateTime(today.year, today.month, today.day, time.hour, time.minute, time.second);
+
+  DateTime _demoNow() => atDemoDay(_clock());
 
   static const _challengeLife = Duration(minutes: 5);
   static const _resendWait = Duration(seconds: 45);
@@ -164,14 +168,7 @@ class DemoBackend {
       kpi: team.kpiOf(member.id),
       monthCommission: commission == null ? null : MonthCommission(amount: commission),
       todaySales: sales.todaySales(member.id, today),
-      cashToday: member.role == MemberRole.warehouse
-          ? CashToday(
-              collected: Money.parse('4968'),
-              paidOrders: 7,
-              pendingOrders: 1,
-              status: CashStatus.open,
-            )
-          : null,
+      cashToday: member.role == MemberRole.warehouse ? warehouse.todaySummary() : null,
     );
   }
 
@@ -212,7 +209,7 @@ class DemoBackend {
       pending: PendingReview(
         payments: 3,
         evidence: evidenceInReview,
-        cashClosings: 1,
+        cashClosings: warehouse.closingsToReview,
         deliverables: team.deliverablesInReview,
       ),
       members: results,

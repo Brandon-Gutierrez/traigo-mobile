@@ -109,8 +109,11 @@ void main() {
 
     expect(find.text('Cierre de caja'), findsOneWidget);
     expect(find.text('CAJA DE HOY'), findsOneWidget);
-    expect(find.text('Bs 4.968'), findsOneWidget);
+    expect(find.text('Bs 3.415'), findsOneWidget);
     expect(find.text('Sin enviar a Jime'), findsOneWidget);
+    expect(find.text('Faltan cerrar 2 días anteriores'), findsOneWidget);
+    expect(find.text('ALMACÉN'), findsOneWidget);
+    expect(find.textContaining('4 por entregar'), findsOneWidget);
     expect(find.text('ESTE MES'), findsNothing);
     expect(find.text('VENTAS DE HOY'), findsNothing);
   });
@@ -163,7 +166,7 @@ void main() {
 
   const actions = {
     'ALI-04': ('+ Registrar venta', 'PASO 1 DE 2 · PRODUCTOS'),
-    'ISA-03': ('Cierre de caja', 'Llega en la fase 4.'),
+    'ISA-03': ('Cierre de caja', 'POR MÉTODO DE PAGO'),
     'AIL-02': ('Subir evidencia', 'LO QUE JIME TODAVÍA NO VALIDA · 1–6 DIC'),
   };
   for (final MapEntry(key: code, value: (action, arrival)) in actions.entries) {

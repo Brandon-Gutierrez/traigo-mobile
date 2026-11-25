@@ -28,6 +28,20 @@ abstract final class AppRoutes {
   static const sellAdd = '$sell/add';
   static const sellCustomer = '$sell/customer';
 
+  /// Almacén, desde el Inicio.
+  static const dispatches = '$home/dispatches';
+  static const stock = '$home/stock';
+  static const stockCounts = '$stock?tab=counts';
+  static String stockProduct(String id) => '$stock/products/$id';
+  static const newCount = '$stock/counts/new';
+  static const newCountAdd = '$newCount/add';
+  static String count(String id) => '$stock/counts/$id';
+
+  /// La caja de un día anterior.
+  static String cashDay(DateTime date) => '$cash/day/'
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+
   /// «Mis pedidos» (solo quienes venden).
   static const orders = '$home/orders';
   static String order(String id) => '$orders/$id';

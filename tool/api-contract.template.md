@@ -113,6 +113,12 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `evidence_validated` | 409 | Jime ya validó ese indicador: no admite más evidencia |
 | `deliverable_validated` | 409 | Jime ya validó esa entrega: no se vuelve a enviar |
 | `week_closed` | 409 | La semana ya está autorizada o Jime cerró la de esa persona |
+| `promised_in_past` | 422 | La entrega acordada ya pasó (con 30 minutos de margen) |
+| `invalid_status` | 409 | El pedido ya no está en el estado que pide la acción |
+| `closing_already_sent` | 409 | El cierre de ese día ya se envió o ya está validado |
+| `note_required` | 422 | Un ajuste de stock sin motivo |
+| `below_reserved` | 409 | El stock quedaría por debajo de lo reservado |
+| `already_adjusted` | 409 | Esa diferencia de conteo ya se corrigió |
 
 ## 2. Roles y permisos
 
@@ -166,6 +172,7 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `POST /warehouse/orders/{id}/ready` | warehouse | `orders` |
 | `POST /warehouse/orders/{id}/delivered` | warehouse | `orders`, `inventory`, `stock_movements` |
 | `GET /cash/today` | warehouse | `payments`, `cash_closings` |
+| `GET /cash/days/{date}` | warehouse | `payments`, `cash_closings` |
 | `POST /cash/closings` | warehouse | `cash_closings`, `cash_closing_lines` |
 | `GET /inventory/counts` · `POST /inventory/counts` | warehouse | `inventory_counts` |
 | `POST /inventory/movements` | warehouse | `stock_movements`, `inventory` |
@@ -265,7 +272,7 @@ Sistemas recibe sus entregas:
 | `kpi.deliverables` | `approved` = entregas `on_time`; solo Sistemas |
 | `month_commission` | Suma de las comisiones `earned` y ajustes del mes. `pay_note` = ajuste `commission_pay_note` |
 | `today_sales` | Ventas propias de hoy, la más nueva primero |
-| `cash_today` | Resumen de `GET /cash/today` |
+| `cash_today` | Resumen de `GET /cash/today`; `pending_days` = cuántos días anteriores faltan |
 
 ### `GET /team/week`
 
@@ -377,7 +384,12 @@ que vio la persona.
 {{newSaleRequest}}
 
 `origin`: `in_person`, `whatsapp` o `wholesale` (la web usa `/store/orders`).
-`201` con el detalle. En **una sola transacción**:
+`delivery.promised_at` es obligatorio en la app: la fecha y hora que quien vende
+**acordó con el cliente** (decisión del 24/11/2026). Va en
+`orders.promised_dispatch_at`; si es anterior a ahora menos 30 minutos,
+`422 promised_in_past`. Los pedidos de la web no la tienen. El detalle la
+devuelve en `delivery.promised_at`. `201` con el detalle. En **una sola
+transacción**:
 
 1. Bloquear el inventario de cada producto (`FOR UPDATE`).
 2. Calcular precios con la regla 13.4 y comparar con `expected_total`:
@@ -393,8 +405,11 @@ que vio la persona.
 5. Sumar a `inventory.reserved` y guardar `order_status_history`.
 6. Crear una fila de `commissions` por línea (`pending`; sin %, `rate_pct` y
    `amount_bs` nulos).
-7. Si es en efectivo, crear el `payments` en `submitted`: se confirma al validar
-   el cierre de caja.
+7. Si es en efectivo, el pedido nace **`paid`** (con `paid_at`) para que almacén
+   lo pueda entregar, y el `payments` queda en `submitted` con `submitted_at` =
+   ahora. Jime lo confirma al validar el cierre de caja; recién entonces cuenta
+   para el bono y la comisión pasa a `earned`. Como ya está pagado, quien vende
+   no lo puede cancelar (decisión del 24/11/2026).
 
 ### `POST /orders/{id}/cancel` con `{ "reason"? }`
 
@@ -411,48 +426,74 @@ por el total y pasa el pedido a `payment_review`. Referencia repetida:
 
 ### Despachos
 
-`GET /warehouse/dispatches`: pedidos `paid` o `ready`, primero los que tienen la
-hora acordada más cercana. `is_late` = ya pasó `promised_at` (sirve para el KPI
-«Despachos dentro de plazo»).
+`GET /warehouse/dispatches`: pedidos `paid` o `ready` de todos (también de la
+web), ordenados por la hora acordada más cercana; los que no tienen hora van al
+final, por `paid_at`. `lines` trae todo lo que hay que preparar. `is_late` = ya
+pasó `promised_dispatch_at` y no se entregó (sirve para el KPI «Despachos dentro
+de plazo»; sin hora acordada, nunca).
 
 {{dispatchesResponse}}
 
 - `POST /warehouse/orders/{id}/ready`: `paid` → `ready` (`204`).
-- `POST /warehouse/orders/{id}/delivered`: → `delivered`; guarda
+- `POST /warehouse/orders/{id}/delivered`: `ready` → `delivered`; guarda
   `dispatched_at` y `delivered_at`, **resta** de `stock` y de `reserved`, y crea
   un movimiento `sale` negativo por producto (en combos, por cada componente).
 
+En otro estado, `409 invalid_status`.
+
 ### Caja del día
 
-`GET /cash/today`: lo cobrado hoy por forma de pago (`expected` = pagos
-`submitted` o `confirmed` del día), lo contado si ya se cerró y los pedidos por
-cobrar.
+`GET /cash/today`: lo cobrado hoy por forma de pago, lo recibido si ya se cerró,
+los pedidos por cobrar y los **días pendientes**. `expected` suma los pagos
+`submitted` o `confirmed` del día en que llegaron (`received_at`; mientras esté
+sin confirmar, `submitted_at`). `lines` trae siempre `qr`, `transfer` y `cash`,
+y `card` solo si hubo pagos con tarjeta de la web.
+
+**Cada día se cierra, aunque no haya cobros** (decisión del 24/11/2026).
+`pending_days` son los días desde el 1/12/2026 hasta ayer sin enviar (`open`) u
+observados, del más antiguo al más nuevo.
 
 {{cashDayResponse}}
 
-`POST /cash/closings` (la diferencia la calcula la base):
+`GET /cash/days/{date}` (`2026-12-04`): un día anterior, con el mismo formato y
+sin `pending_days`. Antes del 1/12/2026 o en el futuro, `404`.
+
+`POST /cash/closings` (la diferencia la calcula la base), para hoy o un día
+anterior:
 
 {{cashClosingRequest}}
 
-Si algo no cuadra y no hay `note`: `422 difference_needs_note`. Queda `sent` y
-los pagos incluidos se ligan al cierre (`payments.cash_closing_id`). Si Jime lo
-observó, el mismo día se vuelve a enviar (hay un cierre por fecha). Responde con
-el formato de `GET /cash/today`.
+- Hay que mandar lo recibido de cada línea.
+- Si algo no cuadra y no hay `note`: `422 difference_needs_note`.
+- Queda `sent` y los pagos incluidos se ligan al cierre
+  (`payments.cash_closing_id`). Si ya está `sent` o `validated`,
+  `409 closing_already_sent`; si Jime lo observó, se vuelve a enviar (hay un
+  cierre por fecha), esa vez aunque el día ya haya pasado.
+
+Responde con el formato de `GET /cash/today`.
 
 ### Stock y conteos
 
 `POST /inventory/movements`: entradas y ajustes. `type`: `initial`, `purchase`,
 `adjustment_in` (cantidad positiva) o `adjustment_out` (**negativa**). El stock
-empieza en 0: la primera carga es con `initial`. `409` si el stock quedaría por
-debajo de lo reservado.
+empieza en 0: la primera carga es con `initial` (la app solo la ofrece para
+productos en 0). Los ajustes **exigen `note`** (`422 note_required`). `409
+below_reserved` si el stock quedaría por debajo de lo reservado.
+
+Para corregir un conteo se manda `inventory_count_id`: la cantidad debe ser
+justo la diferencia de ese producto (si no, `422`) y solo una vez
+(`409 already_adjusted`).
 
 {{stockEntryRequest}}
 
 {{stockLevelResponse}}
 
-`POST /inventory/counts`: el servidor guarda lo que decía el sistema en ese
-momento (`system_qty`). **El conteo no cambia el stock**; se corrige con un
-ajuste. `GET /inventory/counts` devuelve la lista.
+`POST /inventory/counts`: el servidor guarda lo que había **en bodega**
+(`system_qty` = `stock`, con lo reservado) en ese momento. **El conteo no cambia
+el stock**; se corrige con un ajuste, que hace almacén con su motivo (decisión
+del 24/11/2026). La app no muestra esas cifras mientras se cuenta.
+`GET /inventory/counts` devuelve la lista, la más nueva primero; `adjusted` = ya
+hay un movimiento de ese conteo para ese producto.
 
 {{inventoryCountRequest}}
 
@@ -511,7 +552,9 @@ Ambos responden con el formato del `GET`.
 
 - `GET /control/cash-closings/{id}`: formato de la caja del día.
 - `POST /control/cash-closings/{id}/validate`: `validated`; los pagos **en
-  efectivo** ligados al cierre quedan `confirmed` (como al confirmar un pago).
+  efectivo** ligados al cierre quedan `confirmed` (`received_at` =
+  `submitted_at`) y sus comisiones pasan a `earned`. Esos pedidos ya estaban
+  `paid`, `ready` o `delivered`: no cambian de estado.
 - `POST /control/cash-closings/{id}/observe` con `{ "note" }`.
 - `GET /control/deliverables`: las 8 entregas (lista con el formato de la sección 5).
 - `POST /control/deliverables/{id}/validate` con `{ "delivered_on" }`.
@@ -734,7 +777,8 @@ precio por mayor** (lo valida el backend al crear y al vender).
 ### 13.5 Comisiones
 
 Una persona por venta, con la tasa **de cada producto** al momento de vender.
-`pending` → `earned` al cobrar; devolución de algo cobrado = `adjustment`
+`pending` → `earned` cuando el cobro se **confirma** (el efectivo, al validar la
+caja, aunque el pedido ya esté `paid`); devolución de algo cobrado = `adjustment`
 negativo. Se liquida por mes; es independiente del bono.
 
 ### 13.6 Estados del pedido e inventario
@@ -744,6 +788,8 @@ pending_payment → payment_review → paid → ready → delivered
        │                │           └───────┴──────────→ returned
        ├────────────────┴→ cancelled
        └→ expired (web sin pagar a tiempo)
+
+En efectivo (vendedores): nace en paid, con el cobro por confirmar.
 ```
 
 | Momento | Inventario |
@@ -809,7 +855,7 @@ las imágenes y la audiencia de regalo (`gift_audience`).
 | Código del segundo paso | `channel` libre | ¿WhatsApp, SMS, correo o app autenticadora? |
 | % de comisión y fecha de pago | `null` | Definirlos |
 | Comisión de ventas web | Sin vendedor, sin comisión | Si alguien debe cobrarlas |
-| Cobros en efectivo | Se confirman al validar la caja | Confirmar |
-| Hora acordada de despacho | Campo `promised_dispatch_at` | Quién la define y cuál es el plazo normal |
+| Cobros después de enviar la caja | El cierre enviado no cambia; esos cobros quedan sin cierre | ¿Van al cierre del día siguiente o Jime pide corregir? |
+| Pago confirmado tarde | Si Jime confirma un QR después de la hora acordada, el despacho sale atrasado | ¿Cuenta como atraso de almacén? |
 | Envío y pasarela | `shipping_bs` nulo; `gateway_provider` libre | Costo del delivery y proveedor de tarjeta |
 | Códigos del equipo | `JIM-01` … `DIR-08` (propuesta) | Confirmarlos antes de entregar los PIN |

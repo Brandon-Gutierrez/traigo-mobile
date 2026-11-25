@@ -22,6 +22,12 @@ import '../features/team/presentation/evidence_screen.dart';
 import '../features/team/presentation/indicator_screen.dart';
 import '../features/team/presentation/team_screen.dart';
 import '../features/team/presentation/week_screen.dart';
+import '../features/warehouse/presentation/cash_screen.dart';
+import '../features/warehouse/presentation/count_screen.dart';
+import '../features/warehouse/presentation/dispatches_screen.dart';
+import '../features/warehouse/presentation/new_count_screen.dart';
+import '../features/warehouse/presentation/stock_product_screen.dart';
+import '../features/warehouse/presentation/stock_screen.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
 import 'role_navigation.dart';
@@ -83,10 +89,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 });
 
 /// Cada rol entra a las pestañas de su barra y a lo que hay dentro de ellas.
-/// «Mis pedidos» además exige vender.
+/// «Mis pedidos» además exige vender, y despachos y stock, ser de almacén.
 bool canOpen(MemberRole role, String location) {
   bool within(String route) => location == route || location.startsWith('$route/');
   if (within(AppRoutes.orders)) return role.canSell;
+  if (within(AppRoutes.dispatches) || within(AppRoutes.stock)) {
+    return role == MemberRole.warehouse;
+  }
   return navItemsFor(role).any((item) => within(item.route));
 }
 
@@ -103,6 +112,43 @@ List<GoRoute> _innerRoutes(String tab) => switch (tab) {
                     OrderDetailScreen(orderId: state.pathParameters['id']!),
               ),
             ],
+          ),
+          GoRoute(path: 'dispatches', builder: (_, _) => const DispatchesScreen()),
+          GoRoute(
+            path: 'stock',
+            builder: (_, state) => StockScreen(
+              tab: state.uri.queryParameters['tab'] == 'counts'
+                  ? StockTab.counts
+                  : StockTab.products,
+            ),
+            routes: [
+              GoRoute(
+                path: 'products/:id',
+                builder: (_, state) =>
+                    StockProductScreen(productId: state.pathParameters['id']!),
+              ),
+              // Antes que «counts/:id», para que «new» no se lea como un id.
+              GoRoute(
+                path: 'counts/new',
+                builder: (_, _) => const NewCountScreen(),
+                routes: [
+                  GoRoute(path: 'add', builder: (_, _) => const CountProductPickerScreen()),
+                ],
+              ),
+              GoRoute(
+                path: 'counts/:id',
+                builder: (_, state) => CountScreen(countId: state.pathParameters['id']!),
+              ),
+            ],
+          ),
+        ],
+      AppRoutes.cash => [
+          GoRoute(
+            path: 'day/:date',
+            builder: (_, state) {
+              final date = DateTime.tryParse(state.pathParameters['date']!);
+              return CashScreen(key: ValueKey(date), date: date);
+            },
           ),
         ],
       AppRoutes.catalog => [
@@ -144,12 +190,7 @@ Widget _screenFor(String route) => switch (route) {
       AppRoutes.summary => const ControlSummaryScreen(),
       AppRoutes.catalog => const CatalogScreen(),
       AppRoutes.sell => const SaleProductsScreen(),
-      AppRoutes.cash => const PhasePlaceholder(
-          title: 'Cierre de caja',
-          phase: 4,
-          summary: 'La caja del día de todo el equipo por forma de pago, con sus '
-              'comprobantes, para enviarla a Jime.',
-        ),
+      AppRoutes.cash => const CashScreen(),
       AppRoutes.evidence => const EvidenceScreen(),
       AppRoutes.team => const TeamScreen(),
       AppRoutes.week => const WeekScreen(),

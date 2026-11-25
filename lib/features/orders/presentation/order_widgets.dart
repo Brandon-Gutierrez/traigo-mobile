@@ -24,6 +24,14 @@ const _months = [
   'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
 ];
 
+const _weekdays = [
+  'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo',
+];
+
+/// `domingo 6 dic`.
+String weekdayDate(DateTime date) =>
+    '${_weekdays[date.weekday - 1]} ${date.day} ${_months[date.month - 1]}';
+
 /// `11:09`, en la hora del celular.
 String clockTime(DateTime at) {
   final local = at.toLocal();
@@ -48,13 +56,16 @@ String shortDate(DateTime at, DateTime today) {
   };
 }
 
-/// En el detalle: «Hoy 11:09», «Ayer 16:20» o «1 dic 15:05».
-String longDate(DateTime at, DateTime today) {
+/// En el detalle: «Hoy 11:09», «Ayer 16:20», «Mañana 10:00» o «1 dic 15:05».
+String longDate(DateTime at, DateTime today) => '${dayLabel(at, today)} ${clockTime(at)}';
+
+/// «Hoy», «Ayer», «Mañana» o «1 dic».
+String dayLabel(DateTime at, DateTime today) {
   final local = at.toLocal();
-  final day = switch (_daysAgo(at, today)) {
+  return switch (_daysAgo(at, today)) {
     0 => 'Hoy',
     1 => 'Ayer',
+    -1 => 'Mañana',
     _ => '${local.day} ${_months[local.month - 1]}',
   };
-  return '$day ${clockTime(at)}';
 }

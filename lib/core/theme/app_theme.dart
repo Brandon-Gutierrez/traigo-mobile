@@ -98,6 +98,17 @@ abstract final class AppTheme {
         dayShape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
         dividerColor: AppColors.rule,
       ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: AppColors.bg,
+        shape: const BeveledRectangleBorder(
+          borderRadius: BorderRadius.only(topRight: Radius.circular(14)),
+          side: BorderSide(color: AppColors.ink, width: 3),
+        ),
+        helpTextStyle: AppText.label(),
+        hourMinuteShape: const RoundedRectangleBorder(),
+        dayPeriodShape: const RoundedRectangleBorder(),
+        dialBackgroundColor: AppColors.alt,
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.ink,

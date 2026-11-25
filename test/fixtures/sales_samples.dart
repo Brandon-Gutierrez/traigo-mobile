@@ -62,7 +62,11 @@ const ordersResponse = {
 const newSaleRequest = {
   'origin': 'wholesale',
   'customer': {'name': 'Comercio El Hogar', 'phone': '71234567'},
-  'delivery': {'type': 'pickup', 'address': null},
+  'delivery': {
+    'type': 'pickup',
+    'address': null,
+    'promised_at': '2026-12-06T18:00:00-04:00',
+  },
   'payment_method': 'transfer',
   'lines': [
     {'product_id': 'p-8107', 'quantity': 24},
@@ -76,7 +80,11 @@ const orderDetailResponse = {
     ...orderSummaryJson,
     'origin': 'whatsapp',
     'customer_phone': '71234567',
-    'delivery': {'type': 'pickup', 'address': null},
+    'delivery': {
+      'type': 'pickup',
+      'address': null,
+      'promised_at': '2026-12-06T18:00:00-04:00',
+    },
     'lines': [
       {
         'product_id': 'p-8107',

@@ -129,6 +129,7 @@ const warehouseHomeResponse = {
       'paid_orders': 7,
       'pending_orders': 1,
       'status': 'open',
+      'pending_days': 1,
     },
   },
 };

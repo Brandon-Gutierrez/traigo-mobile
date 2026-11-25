@@ -115,6 +115,15 @@ void main() {
       expect(day.canSend, isFalse);
       expect(day.lines.last.difference, Money.parse('-50'));
       expect(day.pending.single.sellerName, 'Alison');
+      expect(day.pendingDays.single.status, CashStatus.observed);
+    });
+
+    test('pide la caja de un día anterior', () async {
+      h.adapter.reply(200, cashDayResponse);
+
+      await WarehouseApiRepository(h.api).cashDay(DateTime(2026, 12, 1));
+
+      expect(path(), '/cash/days/2026-12-01');
     });
 
     test('envía el cierre con lo contado por forma de pago', () async {
@@ -162,6 +171,7 @@ void main() {
       expect(path(), '/warehouse/dispatches');
       expect(queue.single.status, OrderStatus.paid);
       expect(queue.single.deliveryType, DeliveryType.delivery);
+      expect(queue.single.lines.single.quantity, 24);
 
       await repo.markReady('o-1043');
       expect(path(), '/warehouse/orders/o-1043/ready');
@@ -178,6 +188,7 @@ void main() {
         type: StockEntryType.adjustmentOut,
         quantity: 2,
         note: 'Conteo del viernes',
+        inventoryCountId: 'ic-1',
       );
 
       expect(path(), '/inventory/movements');

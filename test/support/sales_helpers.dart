@@ -32,6 +32,14 @@ Future<void> tapTab(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// En el paso 2: entrega mañana, con la hora que propone el reloj.
+Future<void> chooseDelivery(WidgetTester tester) async {
+  await scrollAndTap(tester, find.text('Mañana'));
+  await scrollAndTap(tester, find.text('Elegir hora'));
+  await tester.tap(find.text('ACEPTAR'));
+  await tester.pumpAndSettle();
+}
+
 /// Escribe en el buscador y espera a que busque.
 Future<void> search(WidgetTester tester, String text) async {
   await tester.enterText(find.byType(TextField).first, text);

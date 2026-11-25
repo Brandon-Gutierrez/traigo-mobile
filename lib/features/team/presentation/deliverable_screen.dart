@@ -272,30 +272,11 @@ class _DeliverableFormState extends ConsumerState<_DeliverableForm> {
         ],
         Labeled(
           'Fecha real de entrega',
-          child: Semantics(
-            button: true,
-            label: 'Fecha real de entrega: $date. Cambiar',
-            excludeSemantics: true,
+          child: PickerField(
+            value: date,
+            icon: Icons.calendar_today_outlined,
+            semanticLabel: 'Fecha real de entrega: $date. Cambiar',
             onTap: _busy ? null : _pickDate,
-            child: Material(
-              color: AppColors.alt,
-              shape: const Border(bottom: BorderSide(color: AppColors.ink, width: 3)),
-              child: InkWell(
-                onTap: _busy ? null : _pickDate,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(date, style: AppText.mono(18, weight: FontWeight.w700)),
-                      ),
-                      const Icon(Icons.calendar_today_outlined,
-                          size: 20, color: AppColors.ink),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ),
         ),
         const SizedBox(height: 4),

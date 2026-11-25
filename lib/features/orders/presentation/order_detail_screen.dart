@@ -86,7 +86,7 @@ class _OrderBody extends ConsumerWidget {
         Text(summary.customerName, style: AppText.display(26, height: 1.15)),
         const SizedBox(height: 6),
         Align(alignment: Alignment.centerLeft, child: OrderStatusMark(summary.status)),
-        if (!closed) _Progress(order.timeline),
+        if (!closed) _Progress(order.timeline, cashToConfirm: _cashToConfirm(order)),
         const SizedBox(height: 14),
         const SectionHeader('Productos'),
         for (final line in order.lines) _ProductLine(line),
@@ -102,6 +102,8 @@ class _OrderBody extends ConsumerWidget {
         const SizedBox(height: 14),
         const SectionHeader('Entrega'),
         LeaderRow('Tipo', order.deliveryType.label),
+        if (order.promisedAt != null)
+          LeaderRow('Acordada', longDate(order.promisedAt!, today)),
         LeaderRow('Llegó por', order.origin.label),
         if (order.customerPhone != null) LeaderRow('WhatsApp', order.customerPhone!),
         if (address != null)
@@ -114,6 +116,8 @@ class _OrderBody extends ConsumerWidget {
           const SectionHeader('Tu comisión'),
           CommissionLine(
             label: switch (commission.status) {
+              CommissionStatus.pending when _cashToConfirm(order) =>
+                'Pendiente hasta que Jime confirme el efectivo',
               CommissionStatus.pending => 'Pendiente hasta que se cobre',
               CommissionStatus.earned => 'Ganada con este pedido',
               CommissionStatus.cancelled => 'Anulada',
@@ -134,6 +138,11 @@ class _OrderBody extends ConsumerWidget {
       ],
     );
   }
+
+  /// Efectivo recibido que Jime todavía no confirmó con la caja.
+  static bool _cashToConfirm(OrderDetail order) =>
+      order.summary.paymentMethod == PaymentMethod.cash &&
+      order.payment?.status == PaymentStatus.submitted;
 
   Future<void> _confirmCancel(BuildContext context, WidgetRef ref) async {
     final reason = await showDialog<String>(
@@ -202,13 +211,14 @@ class _CancelDialogState extends State<_CancelDialog> {
 
 /// Registrado → pago confirmado → listo → entregado.
 class _Progress extends StatelessWidget {
-  const _Progress(this.timeline);
+  const _Progress(this.timeline, {required this.cashToConfirm});
 
   final List<TimelineStep> timeline;
+  final bool cashToConfirm;
 
-  static String _label(OrderStatus status) => switch (status) {
+  String _label(OrderStatus status) => switch (status) {
         OrderStatus.pendingPayment => 'REGISTRADO',
-        OrderStatus.paid => 'PAGO CONFIRMADO',
+        OrderStatus.paid => cashToConfirm ? 'PAGADO EN EFECTIVO' : 'PAGO CONFIRMADO',
         OrderStatus.ready => 'LISTO',
         OrderStatus.delivered => 'ENTREGADO',
         _ => status.label.toUpperCase(),
@@ -305,8 +315,9 @@ class _Payment extends ConsumerWidget {
     final String? note;
     if (payment?.status == PaymentStatus.confirmed) {
       note = 'Jime confirmó el pago.';
-    } else if (method == PaymentMethod.cash && order.canCancel) {
-      note = 'El efectivo se confirma cuando Jime valida la caja del día.';
+    } else if (method == PaymentMethod.cash &&
+        payment?.status == PaymentStatus.submitted) {
+      note = 'Jime confirma el efectivo cuando valida la caja del día.';
     } else {
       note = null;
     }

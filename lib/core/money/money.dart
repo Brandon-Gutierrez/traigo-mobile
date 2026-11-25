@@ -30,6 +30,20 @@ class Money implements Comparable<Money> {
     };
   }
 
+  /// Lo que escribe una persona: «810», «810,50», «1.340» o «1340.5».
+  /// `null` si no es un monto. Nunca negativo.
+  static Money? tryParseInput(String input) {
+    var text = input.replaceAll(RegExp(r'\s|Bs'), '');
+    if (text.contains(',')) {
+      // Con coma decimal, los puntos separan miles.
+      text = text.replaceAll('.', '').replaceFirst(',', '.');
+    } else if (RegExp(r'^\d{1,3}(\.\d{3})+$').hasMatch(text)) {
+      text = text.replaceAll('.', '');
+    }
+    if (!RegExp(r'^\d{1,9}(\.\d{1,2})?$').hasMatch(text)) return null;
+    return Money.parse(text);
+  }
+
   static const zero = Money.fromCents(0);
 
   final int cents;

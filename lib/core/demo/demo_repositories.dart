@@ -5,9 +5,11 @@ import '../../features/home/domain/home.dart';
 import '../../features/orders/domain/orders.dart';
 import '../../features/team/domain/my_week.dart';
 import '../../features/team/domain/team_week.dart';
+import '../../features/warehouse/domain/warehouse.dart';
 import '../network/paged_result.dart';
 import '../storage/token_storage.dart';
 import 'demo_backend.dart';
+import 'demo_warehouse.dart';
 
 /// Repositorios de prueba: delegan en [DemoBackend] y agregan una espera
 /// artificial para poder ver los estados de carga de las pantallas.
@@ -179,6 +181,72 @@ class DemoTeamRepository extends _DemoRepository implements TeamRepository {
             clientUuid: clientUuid,
             file: file,
             url: url,
+          ));
+}
+
+class DemoWarehouseRepository extends _DemoRepository implements WarehouseRepository {
+  const DemoWarehouseRepository(super.backend, super.latency);
+
+  DemoWarehouse get _warehouse => backend.warehouse;
+
+  @override
+  Future<List<Dispatch>> dispatchQueue() =>
+      run(() => _warehouse.dispatches(backend.requireMember()));
+
+  @override
+  Future<void> markReady(String orderId) =>
+      run(() => _warehouse.markReady(backend.requireMember(), orderId));
+
+  @override
+  Future<void> markDelivered(String orderId) =>
+      run(() => _warehouse.markDelivered(backend.requireMember(), orderId));
+
+  @override
+  Future<CashDay> cashToday() => run(() => _warehouse.cashToday(backend.requireMember()));
+
+  @override
+  Future<CashDay> cashDay(DateTime date) =>
+      run(() => _warehouse.cashDay(backend.requireMember(), date));
+
+  @override
+  Future<CashDay> sendClosing(NewCashClosing closing) =>
+      run(() => _warehouse.sendClosing(backend.requireMember(), closing));
+
+  @override
+  Future<StockLevel> registerStock({
+    required String clientUuid,
+    required String productId,
+    required StockEntryType type,
+    required int quantity,
+    String? note,
+    String? inventoryCountId,
+  }) =>
+      run(() => _warehouse.registerStock(
+            backend.requireMember(),
+            clientUuid: clientUuid,
+            productId: productId,
+            type: type,
+            quantity: quantity,
+            note: note,
+            inventoryCountId: inventoryCountId,
+          ));
+
+  @override
+  Future<List<InventoryCount>> counts() =>
+      run(() => _warehouse.counts(backend.requireMember()));
+
+  @override
+  Future<InventoryCount> submitCount({
+    required String clientUuid,
+    required DateTime countedOn,
+    required Map<String, int> counted,
+    String? note,
+  }) =>
+      run(() => _warehouse.submitCount(
+            backend.requireMember(),
+            clientUuid: clientUuid,
+            countedOn: countedOn,
+            counted: counted,
           ));
 }
 

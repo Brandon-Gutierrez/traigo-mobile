@@ -5,9 +5,11 @@ import '../../features/catalog/domain/catalog.dart';
 import '../../features/catalog/domain/pricing.dart';
 import '../../features/home/domain/home.dart';
 import '../../features/orders/domain/orders.dart';
+import '../../features/warehouse/domain/warehouse.dart';
 import '../money/money.dart';
 import '../network/api_exception.dart';
 import '../network/paged_result.dart';
+import 'demo_backend.dart';
 import 'demo_catalog.dart';
 
 /// Catálogo y ventas de la demo, con las mismas reglas que el contrato:
@@ -17,6 +19,10 @@ class DemoSales {
   DemoSales({required this._now}) {
     for (final product in demoCatalog) {
       _stock[_productId(product.code)] = _Stock(product.stock, product.reserved);
+    }
+    // Reservas de los pedidos de ejemplo que la lista de stock no contaba.
+    for (final (code, quantity) in const [('A397462', 1), ('A433734', 4), ('8850', 4)]) {
+      _stock[_productId(code)]!.reserved += quantity;
     }
     _orders.addAll(_seedOrders());
   }
@@ -167,6 +173,12 @@ class DemoSales {
     if (sale.origin == OrderOrigin.web || sale.lines.isEmpty) {
       throw const ValidationException(message: 'Revisa los datos de la venta.');
     }
+    if (sale.promisedAt.isBefore(_now().subtract(NewSale.pastTolerance))) {
+      throw const ValidationException(
+        code: 'promised_in_past',
+        message: 'La hora de entrega ya pasó.',
+      );
+    }
 
     final cart = <CartLine>[];
     for (final line in sale.lines) {
@@ -199,21 +211,30 @@ class DemoSales {
       _stock[line.item.id]!.reserved += line.quantity;
     }
     final number = _nextNumber++;
+    final createdAt = _now();
+    // El efectivo ya se recibió: queda «Pagado» para que almacén lo entregue.
+    // Jime lo confirma al validar la caja del día.
+    final cash = sale.paymentMethod == PaymentMethod.cash;
     final order = _DemoOrder(
       id: '$number',
       sellerId: member.id,
-      createdAt: _now(),
+      createdAt: createdAt,
       origin: sale.origin,
       customerName: sale.customerName.trim(),
       customerPhone: sale.customerPhone,
       deliveryType: sale.deliveryType,
       address: sale.shippingAddress,
       method: sale.paymentMethod,
-      status: OrderStatus.pendingPayment,
+      promisedAt: sale.promisedAt,
+      status: cash ? OrderStatus.paid : OrderStatus.pendingPayment,
+      paidAt: cash ? createdAt : null,
       lines: [for (final line in cart) _line(line.item, line.quantity, line.priceType)],
-      // El efectivo se confirma al validar la caja del día.
-      payment: sale.paymentMethod == PaymentMethod.cash
-          ? const OrderPayment(method: PaymentMethod.cash, status: PaymentStatus.submitted)
+      payment: cash
+          ? OrderPayment(
+              method: PaymentMethod.cash,
+              status: PaymentStatus.submitted,
+              submittedAt: createdAt,
+            )
           : null,
     );
     _orders.add(order);
@@ -281,6 +302,134 @@ class DemoSales {
     throw const NotFoundException('No encontramos ese pedido.');
   }
 
+  // ─────────────────────────────────────────────── para almacén y caja
+
+  /// Pagados por preparar y listos por entregar: primero los de entrega más
+  /// cercana y, al final, los que no tienen hora.
+  List<Dispatch> dispatchQueue() {
+    final now = _now();
+    final queue = [
+      for (final o in _orders)
+        if (o.status == OrderStatus.paid || o.status == OrderStatus.ready) o,
+    ]..sort((a, b) {
+        final first = a.promisedAt;
+        final second = b.promisedAt;
+        if (first != null && second != null) return first.compareTo(second);
+        if (first != null) return -1;
+        if (second != null) return 1;
+        return a.paidAt!.compareTo(b.paidAt!);
+      });
+    return [
+      for (final o in queue)
+        Dispatch(
+          orderId: o.id,
+          number: 'N-${o.id}',
+          customerName: o.customerName,
+          itemsLabel: o.summary.itemsLabel,
+          lines: [
+            for (final line in o.lines)
+              DispatchLine(itemCode: line.itemCode, name: line.name, quantity: line.quantity),
+          ],
+          deliveryType: o.deliveryType,
+          status: o.status,
+          isLate: o.promisedAt != null && now.isAfter(o.promisedAt!),
+          customerPhone: o.customerPhone,
+          shippingAddress: o.address,
+          paidAt: o.paidAt,
+          promisedAt: o.promisedAt,
+        ),
+    ];
+  }
+
+  void markReady(String id) {
+    _inStatus(id, OrderStatus.paid)
+      ..status = OrderStatus.ready
+      ..readyAt = _now();
+  }
+
+  /// Al entregar, lo reservado sale de la bodega.
+  void markDelivered(String id) {
+    final order = _inStatus(id, OrderStatus.ready);
+    for (final line in order.lines) {
+      _stock[line.productId]!
+        ..stock -= line.quantity
+        ..reserved -= line.quantity;
+    }
+    order
+      ..status = OrderStatus.delivered
+      ..deliveredAt = _now();
+  }
+
+  _DemoOrder _inStatus(String id, OrderStatus expected) {
+    final order = _orders.where((o) => o.id == id).firstOrNull;
+    if (order == null) throw const NotFoundException('No encontramos ese pedido.');
+    if (order.status != expected) {
+      throw const ConflictException(
+        code: 'invalid_status',
+        message: 'El pedido cambió de estado. Revisa la lista.',
+      );
+    }
+    return order;
+  }
+
+  /// Los cobros de un día como los suma la caja: comprobantes enviados o
+  /// confirmados y el efectivo recibido.
+  List<({PaymentMethod method, Money amount})> collectionsOn(DateTime day) => [
+        for (final o in _orders)
+          if (o.payment case final payment?
+              when (payment.status == PaymentStatus.submitted ||
+                      payment.status == PaymentStatus.confirmed) &&
+                  o.status != OrderStatus.cancelled &&
+                  o.status != OrderStatus.returned &&
+                  payment.submittedAt != null &&
+                  _sameDay(payment.submittedAt!, day))
+            (method: payment.method, amount: o.total),
+      ];
+
+  /// Pedidos de ese día que todavía no se cobraron.
+  List<PendingCollection> pendingOn(DateTime day) => [
+        for (final o in _orders)
+          if (o.status == OrderStatus.pendingPayment && _sameDay(o.createdAt, day))
+            PendingCollection(
+              orderId: o.id,
+              number: 'N-${o.id}',
+              customerName: o.customerName,
+              method: o.method,
+              total: o.total,
+              sellerName: DemoBackend.members.where((m) => m.id == o.sellerId).firstOrNull?.name,
+              detail: o.payment?.status == PaymentStatus.rejected
+                  ? 'comprobante rechazado'
+                  : 'sin comprobante',
+            ),
+      ];
+
+  StockLevel stockLevel(String productId) {
+    final stock = _stock[productId];
+    if (stock == null) {
+      throw const NotFoundException('Ese producto ya no está en el catálogo.');
+    }
+    return StockLevel(
+      productId: productId,
+      stock: stock.stock,
+      reserved: stock.reserved,
+      available: stock.stock - stock.reserved,
+    );
+  }
+
+  /// Suma [delta] a la bodega sin dejar menos de lo reservado por pedidos.
+  StockLevel moveStock(String productId, int delta) {
+    final level = stockLevel(productId);
+    if (level.stock + delta < level.reserved) {
+      throw ConflictException(
+        code: 'below_reserved',
+        message: 'No puede quedar menos de las ${level.reserved} unidades '
+            'reservadas por pedidos.',
+      );
+    }
+    _stock[productId]!.stock += delta;
+    return stockLevel(productId);
+  }
+
   static void _requireSeller(Member member) {
     if (!member.role.canSell) {
       throw const NotFoundException('Solo quienes venden tienen pedidos.');
@@ -312,6 +461,19 @@ class DemoSales {
 
     DateTime at(int day, int hour, int minute) => DateTime(2026, 12, day, hour, minute);
 
+    OrderPayment cash(DateTime received) => OrderPayment(
+          method: PaymentMethod.cash,
+          status: PaymentStatus.submitted,
+          submittedAt: received,
+        );
+
+    OrderPayment confirmed(PaymentMethod method, String file, DateTime submitted) => OrderPayment(
+          method: method,
+          status: PaymentStatus.confirmed,
+          proofUrl: 'demo://comprobantes/$file',
+          submittedAt: submitted,
+        );
+
     return [
       _DemoOrder(
         id: '1046',
@@ -322,6 +484,7 @@ class DemoSales {
         customerPhone: '71234567',
         method: PaymentMethod.qr,
         status: OrderStatus.paymentReview,
+        promisedAt: at(6, 18, 0),
         lines: [line('8107', 2)],
         payment: OrderPayment(
           method: PaymentMethod.qr,
@@ -339,14 +502,22 @@ class DemoSales {
         customerPhone: '70712233',
         method: PaymentMethod.qr,
         status: OrderStatus.paid,
+        promisedAt: at(6, 17, 0),
         lines: [line('8923', 1)],
         paidAt: at(6, 10, 55),
-        payment: OrderPayment(
-          method: PaymentMethod.qr,
-          status: PaymentStatus.confirmed,
-          proofUrl: 'demo://comprobantes/comprobante-1045.jpg',
-          submittedAt: at(6, 10, 45),
-        ),
+        payment: confirmed(PaymentMethod.qr, 'comprobante-1045.jpg', at(6, 10, 45)),
+      ),
+      _DemoOrder(
+        id: '1044',
+        sellerId: '5',
+        createdAt: at(6, 11, 30),
+        origin: OrderOrigin.whatsapp,
+        customerName: 'Ferretería Central',
+        customerPhone: '72288110',
+        method: PaymentMethod.qr,
+        status: OrderStatus.pendingPayment,
+        promisedAt: at(8, 10, 0),
+        lines: [line('8850', 4)],
       ),
       _DemoOrder(
         id: '1043',
@@ -355,17 +526,45 @@ class DemoSales {
         origin: OrderOrigin.wholesale,
         customerName: 'Comercio El Hogar',
         customerPhone: '71234567',
+        deliveryType: DeliveryType.delivery,
+        address: 'Av. Blanco Galindo km 4, Cochabamba',
         method: PaymentMethod.transfer,
         status: OrderStatus.ready,
+        promisedAt: at(6, 12, 0),
         lines: [line('8109', 24, PriceType.wholesale)],
         paidAt: at(6, 9, 50),
         readyAt: at(6, 10, 30),
-        payment: OrderPayment(
-          method: PaymentMethod.transfer,
-          status: PaymentStatus.confirmed,
-          proofUrl: 'demo://comprobantes/transferencia-1043.jpg',
-          submittedAt: at(6, 9, 35),
-        ),
+        payment: confirmed(PaymentMethod.transfer, 'transferencia-1043.jpg', at(6, 9, 35)),
+      ),
+      _DemoOrder(
+        id: '1042',
+        sellerId: '5',
+        createdAt: at(6, 10, 50),
+        origin: OrderOrigin.wholesale,
+        customerName: 'Librería Andina',
+        customerPhone: '70455901',
+        method: PaymentMethod.cash,
+        status: OrderStatus.paid,
+        promisedAt: at(7, 10, 0),
+        lines: [line('A433734', 4)],
+        paidAt: at(6, 10, 50),
+        payment: cash(at(6, 10, 50)),
+      ),
+      // Venta de la tienda web: sin vendedor y sin hora acordada.
+      _DemoOrder(
+        id: '1041',
+        sellerId: null,
+        createdAt: at(6, 8, 15),
+        origin: OrderOrigin.web,
+        customerName: 'Carla Rojas',
+        customerPhone: '70123456',
+        deliveryType: DeliveryType.delivery,
+        address: 'Calle Sucre 245, Cochabamba',
+        method: PaymentMethod.qr,
+        status: OrderStatus.paid,
+        lines: [line('A397462', 1)],
+        paidAt: at(6, 8, 40),
+        payment: confirmed(PaymentMethod.qr, 'comprobante-1041.jpg', at(6, 8, 16)),
       ),
       _DemoOrder(
         id: '1040',
@@ -376,11 +575,28 @@ class DemoSales {
         customerPhone: '76543210',
         method: PaymentMethod.cash,
         status: OrderStatus.delivered,
+        promisedAt: at(5, 18, 0),
         lines: [line('FSYB-1109W', 3)],
-        paidAt: at(5, 18, 30),
+        paidAt: at(5, 16, 20),
         readyAt: at(5, 17, 0),
         deliveredAt: at(5, 18, 0),
-        payment: const OrderPayment(method: PaymentMethod.cash, status: PaymentStatus.confirmed),
+        payment: cash(at(5, 16, 20)),
+      ),
+      _DemoOrder(
+        id: '1039',
+        sellerId: '5',
+        createdAt: at(4, 10, 15),
+        origin: OrderOrigin.wholesale,
+        customerName: 'Tienda Don Luis',
+        customerPhone: '79912045',
+        method: PaymentMethod.cash,
+        status: OrderStatus.delivered,
+        promisedAt: at(4, 16, 0),
+        lines: [line('8850', 10)],
+        paidAt: at(4, 10, 15),
+        readyAt: at(4, 14, 0),
+        deliveredAt: at(4, 15, 30),
+        payment: cash(at(4, 10, 15)),
       ),
       _DemoOrder(
         id: '1038',
@@ -391,6 +607,7 @@ class DemoSales {
         customerPhone: '79988776',
         method: PaymentMethod.qr,
         status: OrderStatus.cancelled,
+        promisedAt: at(2, 10, 0),
         lines: [line('A413537', 1)],
       ),
     ];
@@ -400,7 +617,7 @@ class DemoSales {
 class _Stock {
   _Stock(this.stock, this.reserved);
 
-  final int stock;
+  int stock;
   int reserved;
 }
 
@@ -418,13 +635,16 @@ class _DemoOrder {
     this.deliveryType = DeliveryType.pickup,
     this.address,
     this.payment,
+    this.promisedAt,
     this.paidAt,
     this.readyAt,
     this.deliveredAt,
   });
 
   final String id;
-  final String sellerId;
+
+  /// `null` en las ventas de la tienda web.
+  final String? sellerId;
   final DateTime createdAt;
   final OrderOrigin origin;
   final String customerName;
@@ -435,9 +655,10 @@ class _DemoOrder {
   OrderStatus status;
   final List<OrderLine> lines;
   OrderPayment? payment;
+  final DateTime? promisedAt;
   final DateTime? paidAt;
-  final DateTime? readyAt;
-  final DateTime? deliveredAt;
+  DateTime? readyAt;
+  DateTime? deliveredAt;
 
   Money get total => lines.fold(Money.zero, (sum, l) => sum + l.total);
 
@@ -471,6 +692,7 @@ class _DemoOrder {
         customerPhone: customerPhone,
         deliveryType: deliveryType,
         shippingAddress: address,
+        promisedAt: promisedAt,
         lines: List.unmodifiable(lines),
         payment: payment,
         timeline: [
@@ -481,9 +703,12 @@ class _DemoOrder {
         ],
         // El % de comisión todavía no está definido: el monto va nulo.
         commission: OrderCommission(
+          // Se gana cuando Jime confirma el cobro (el efectivo, con la caja).
           status: status == OrderStatus.cancelled
               ? CommissionStatus.cancelled
-              : (paidAt != null ? CommissionStatus.earned : CommissionStatus.pending),
+              : (payment?.status == PaymentStatus.confirmed
+                  ? CommissionStatus.earned
+                  : CommissionStatus.pending),
         ),
         canCancel: canCancel,
         canUploadProof: canUploadProof,

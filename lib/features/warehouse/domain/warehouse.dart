@@ -71,6 +71,21 @@ class PendingCollection {
   final String? detail;
 }
 
+/// Un día anterior que falta enviar o que Jime observó.
+class PendingDay {
+  const PendingDay({required this.date, required this.status});
+
+  factory PendingDay.fromJson(Json json) => PendingDay(
+        date: json.date('date'),
+        status: CashStatus.fromApi(json.str('status')),
+      );
+
+  final DateTime date;
+
+  /// `open` (sin enviar) u `observed`.
+  final CashStatus status;
+}
+
 /// La caja de un día, antes y después de cerrarla.
 class CashDay {
   const CashDay({
@@ -81,6 +96,7 @@ class CashDay {
     required this.pendingOrders,
     required this.lines,
     required this.pending,
+    this.pendingDays = const [],
     this.closingId,
     this.closedByName,
     this.sentAt,
@@ -97,6 +113,7 @@ class CashDay {
         pendingOrders: json.integer('pending_orders'),
         lines: json.list('lines').map(CashLine.fromJson).toList(),
         pending: json.list('pending').map(PendingCollection.fromJson).toList(),
+        pendingDays: json.list('pending_days').map(PendingDay.fromJson).toList(),
         closedByName: json.strOrNull('closed_by_name'),
         sentAt: json.dateOrNull('sent_at'),
         note: json.strOrNull('note'),
@@ -111,6 +128,9 @@ class CashDay {
   final int pendingOrders;
   final List<CashLine> lines;
   final List<PendingCollection> pending;
+
+  /// Solo en la caja de hoy: los días anteriores que faltan.
+  final List<PendingDay> pendingDays;
   final String? closedByName;
   final DateTime? sentAt;
 
@@ -146,23 +166,39 @@ class CountedProduct {
   const CountedProduct({
     required this.productId,
     required this.itemCode,
+    required this.name,
     required this.systemQty,
     required this.countedQty,
+    this.adjusted = false,
   });
 
   factory CountedProduct.fromJson(Json json) => CountedProduct(
         productId: json.str('product_id'),
         itemCode: json.str('item_code'),
+        name: json.str('name'),
         systemQty: json.integer('system_qty'),
         countedQty: json.integer('counted_qty'),
+        adjusted: json.flag('adjusted'),
       );
 
   final String productId;
   final String itemCode;
+  final String name;
+
+  /// Lo que el sistema tenía en bodega al guardar el conteo.
   final int systemQty;
   final int countedQty;
 
+  /// La diferencia ya se corrigió con un ajuste.
+  final bool adjusted;
+
   int get difference => countedQty - systemQty;
+
+  bool get needsAdjustment => difference != 0 && !adjusted;
+
+  /// El ajuste que corrige la diferencia.
+  StockEntryType get adjustmentType =>
+      difference < 0 ? StockEntryType.adjustmentOut : StockEntryType.adjustmentIn;
 }
 
 class InventoryCount {
@@ -179,6 +215,20 @@ class InventoryCount {
   final List<CountedProduct> items;
 }
 
+class DispatchLine {
+  const DispatchLine({required this.itemCode, required this.name, required this.quantity});
+
+  factory DispatchLine.fromJson(Json json) => DispatchLine(
+        itemCode: json.str('item_code'),
+        name: json.str('name'),
+        quantity: json.integer('quantity'),
+      );
+
+  final String itemCode;
+  final String name;
+  final int quantity;
+}
+
 /// Un pedido pagado que hay que preparar y entregar.
 class Dispatch {
   const Dispatch({
@@ -186,6 +236,7 @@ class Dispatch {
     required this.number,
     required this.customerName,
     required this.itemsLabel,
+    required this.lines,
     required this.deliveryType,
     required this.status,
     required this.isLate,
@@ -200,6 +251,7 @@ class Dispatch {
         number: json.str('number'),
         customerName: json.str('customer_name'),
         itemsLabel: json.str('items_label'),
+        lines: json.list('lines').map(DispatchLine.fromJson).toList(),
         deliveryType: DeliveryType.fromApi(json.str('delivery_type')),
         status: OrderStatus.fromApi(json.str('status')),
         isLate: json.flag('is_late'),
@@ -213,12 +265,15 @@ class Dispatch {
   final String number;
   final String customerName;
   final String itemsLabel;
+
+  /// Todo lo que hay que preparar.
+  final List<DispatchLine> lines;
   final DeliveryType deliveryType;
 
   /// `paid` (por preparar) o `ready` (por entregar).
   final OrderStatus status;
 
-  /// Pasó la hora acordada (KPI «Despachos dentro de plazo»).
+  /// Pasó la hora acordada sin entregarse (KPI «Despachos dentro de plazo»).
   final bool isLate;
   final String? customerPhone;
   final String? shippingAddress;
@@ -272,16 +327,21 @@ abstract interface class WarehouseRepository {
   /// Entregado: sale del stock.
   Future<void> markDelivered(String orderId);
 
-  /// [quantity] siempre positiva; el signo lo decide [type].
+  /// [quantity] siempre positiva; el signo lo decide [type]. Los ajustes llevan
+  /// motivo. [inventoryCountId] liga el ajuste que corrige un conteo.
   Future<StockLevel> registerStock({
     required String clientUuid,
     required String productId,
     required StockEntryType type,
     required int quantity,
     String? note,
+    String? inventoryCountId,
   });
 
   Future<CashDay> cashToday();
+
+  /// La caja de un día anterior (para enviarlo o corregirlo).
+  Future<CashDay> cashDay(DateTime date);
 
   /// Lanza [ValidationException] con `difference_needs_note`.
   Future<CashDay> sendClosing(NewCashClosing closing);

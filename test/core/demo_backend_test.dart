@@ -119,7 +119,10 @@ void main() {
       expect(alison.cashToday, isNull);
 
       final isai = homeOf('ISA-03');
-      expect(isai.cashToday?.collected, Money.parse('4968'));
+      expect(isai.cashToday?.collected, Money.parse('3415'));
+      expect(isai.cashToday?.paidOrders, 5);
+      expect(isai.cashToday?.pendingOrders, 1);
+      expect(isai.cashToday?.pendingDays, 2);
       expect(isai.monthCommission, isNull);
       expect(isai.todaySales, isEmpty);
 

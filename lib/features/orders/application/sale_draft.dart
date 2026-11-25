@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show TimeOfDay, immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -20,6 +20,8 @@ class SaleDraft {
     this.deliveryType = DeliveryType.pickup,
     this.address = '',
     this.paymentMethod = PaymentMethod.qr,
+    this.deliveryDate,
+    this.deliveryTime,
   });
 
   /// Clave contra duplicados: se mantiene mientras no se sepa si el servidor
@@ -35,6 +37,17 @@ class SaleDraft {
   final String address;
   final PaymentMethod paymentMethod;
 
+  /// La entrega acordada con el cliente (sin valor por defecto).
+  final DateTime? deliveryDate;
+  final TimeOfDay? deliveryTime;
+
+  DateTime? get promisedAt {
+    final date = deliveryDate;
+    final time = deliveryTime;
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
   PricedCart get cart => PricedCart(lines);
 
   int quantityOf(String productId) {
@@ -44,8 +57,9 @@ class SaleDraft {
     return 0;
   }
 
-  /// Qué falta para poder registrar, o `null` si ya se puede.
-  String? get blockedReason {
+  /// Qué falta para poder registrar, o `null` si ya se puede. [now] es la hora
+  /// actual, para no acordar una entrega en el pasado.
+  String? blockedReason(DateTime now) {
     if (lines.isEmpty) return 'Agrega productos';
     if (customerName.trim().isEmpty) return 'Escribe el nombre del cliente';
     if (customerPhone.replaceAll(RegExp(r'\D'), '').length < 7) {
@@ -54,6 +68,12 @@ class SaleDraft {
     if (origin == null) return 'Elige cómo llegó';
     if (deliveryType == DeliveryType.delivery && address.trim().isEmpty) {
       return 'Escribe la dirección';
+    }
+    if (deliveryDate == null) return 'Elige el día de entrega';
+    final promised = promisedAt;
+    if (promised == null) return 'Elige la hora de entrega';
+    if (promised.isBefore(now.subtract(NewSale.pastTolerance))) {
+      return 'Esa hora ya pasó';
     }
     return null;
   }
@@ -71,6 +91,7 @@ class SaleDraft {
           for (final line in lines) (productId: line.item.id, quantity: line.quantity),
         ],
         expectedTotal: cart.total,
+        promisedAt: promisedAt!,
       );
 
   SaleDraft copyWith({
@@ -82,6 +103,8 @@ class SaleDraft {
     DeliveryType? deliveryType,
     String? address,
     PaymentMethod? paymentMethod,
+    DateTime? deliveryDate,
+    TimeOfDay? deliveryTime,
   }) =>
       SaleDraft(
         requestKey: requestKey ?? this.requestKey,
@@ -92,6 +115,8 @@ class SaleDraft {
         deliveryType: deliveryType ?? this.deliveryType,
         address: address ?? this.address,
         paymentMethod: paymentMethod ?? this.paymentMethod,
+        deliveryDate: deliveryDate ?? this.deliveryDate,
+        deliveryTime: deliveryTime ?? this.deliveryTime,
       );
 }
 

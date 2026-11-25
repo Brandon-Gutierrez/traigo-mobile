@@ -16,6 +16,9 @@ import '../../auth/presentation/account_header.dart';
 import '../../team/domain/bonus.dart';
 import '../../team/domain/kpi.dart';
 import '../../team/presentation/week_block.dart';
+import '../../team/presentation/week_widgets.dart' show OpenRow;
+import '../../warehouse/application/warehouse_providers.dart';
+import '../../warehouse/presentation/dispatches_screen.dart' show dispatchSummary;
 import '../application/home_providers.dart';
 import '../domain/home.dart';
 
@@ -101,6 +104,8 @@ class HomeScreen extends ConsumerWidget {
         _TodaySales(home.todaySales),
       ],
       if (cash != null) ...[
+        const SizedBox(height: 14),
+        const _WarehouseSection(),
         const SizedBox(height: 14),
         _CashSection(cash),
       ],
@@ -335,6 +340,81 @@ class _CashSection extends StatelessWidget {
         LeaderRow('Pedidos por cobrar', '${cash.pendingOrders}'),
         const SizedBox(height: 6),
         Align(alignment: Alignment.centerLeft, child: StatusMark(kind, cash.status.label)),
+        if (cash.pendingDays > 0) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: StatusMark(
+              MarkKind.bad,
+              cash.pendingDays == 1
+                  ? 'Falta cerrar 1 día anterior'
+                  : 'Faltan cerrar ${cash.pendingDays} días anteriores',
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Despachos y stock, que no tienen pestaña propia.
+class _WarehouseSection extends ConsumerWidget {
+  const _WarehouseSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final queue = ref.watch(dispatchQueueProvider);
+    final dispatches = queue.value;
+    final anyLate = dispatches?.any((d) => d.isLate) ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Almacén'),
+        _OpenLine(
+          title: 'Despachos',
+          detail: dispatches != null
+              ? dispatchSummary(dispatches)
+              : (queue.hasError ? 'No se pudieron cargar' : 'Cargando…'),
+          alert: anyLate,
+          onTap: () => context.go(AppRoutes.dispatches),
+        ),
+        _OpenLine(
+          title: 'Stock y conteos',
+          detail: 'Ingresos, ajustes y conteo físico',
+          onTap: () => context.go(AppRoutes.stock),
+        ),
+      ],
+    );
+  }
+}
+
+class _OpenLine extends StatelessWidget {
+  const _OpenLine({
+    required this.title,
+    required this.detail,
+    required this.onTap,
+    this.alert = false,
+  });
+
+  final String title;
+  final String detail;
+  final VoidCallback onTap;
+  final bool alert;
+
+  @override
+  Widget build(BuildContext context) {
+    return OpenRow(
+      onTap: onTap,
+      children: [
+        Text(title, style: AppText.body(16, FontWeight.w700)),
+        Text(
+          detail,
+          style: AppText.body(
+            13,
+            alert ? FontWeight.w600 : FontWeight.w400,
+            color: alert ? AppColors.alert : AppColors.muted,
+          ),
+        ),
       ],
     );
   }

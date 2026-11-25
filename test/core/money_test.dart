@@ -2,6 +2,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/core/money/money.dart';
 
 void main() {
+  test('lee los montos como se escriben en Bolivia', () {
+    for (final (text, cents) in const [
+      ('810', 81000),
+      ('810,50', 81050),
+      ('810.5', 81050),
+      ('1.340', 134000),
+      ('1.340,5', 134050),
+      ('Bs 2.140', 214000),
+      ('0', 0),
+    ]) {
+      expect(Money.tryParseInput(text)?.cents, cents, reason: text);
+    }
+    for (final text in const ['', 'diez', '-5', '1,234', '12.3456', '1..2']) {
+      expect(Money.tryParseInput(text), isNull, reason: text);
+    }
+  });
+
   group('Money.parse y toApi', () {
     test('lee montos del backend con y sin decimales', () {
       expect(Money.parse('120.00').cents, 12000);

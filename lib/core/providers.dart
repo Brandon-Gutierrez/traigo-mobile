@@ -115,10 +115,24 @@ final teamRepositoryProvider = Provider<TeamRepository>((ref) {
   return TeamApiRepository(ref.watch(apiClientProvider));
 });
 
+final warehouseRepositoryProvider = Provider<WarehouseRepository>((ref) {
+  if (_isDemo(ref)) {
+    return DemoWarehouseRepository(ref.watch(demoBackendProvider), _latency(ref));
+  }
+  return WarehouseApiRepository(ref.watch(apiClientProvider));
+});
+
 /// «Hoy» para las etiquetas de fecha. En la demo, la foto del 6 de diciembre.
 final todayProvider = Provider<DateTime Function()>(
   (ref) => _isDemo(ref) ? () => DemoBackend.today : DateTime.now,
 );
+
+/// «Ahora», con la hora. En la demo, la hora actual del 6 de diciembre.
+final nowProvider = Provider<DateTime Function()>((ref) {
+  final clock = ref.watch(clockProvider);
+  if (!_isDemo(ref)) return clock;
+  return () => DemoBackend.atDemoDay(clock());
+});
 
 // ───── Listos para la API; sus datos de demo se agregan junto con la pantalla
 // ───── de cada fase.
@@ -131,9 +145,6 @@ Provider<T> _apiOnly<T>(int phase, T Function(ApiClient api) create) =>
       }
       return create(ref.watch(apiClientProvider));
     });
-
-final warehouseRepositoryProvider =
-    _apiOnly<WarehouseRepository>(4, WarehouseApiRepository.new);
 
 final reviewRepositoryProvider = _apiOnly<ReviewRepository>(5, ReviewApiRepository.new);
 

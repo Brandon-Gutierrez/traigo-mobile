@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/core/money/money.dart';
 import 'package:traigo/core/network/api_exception.dart';
+import 'package:traigo/core/network/json.dart';
 import 'package:traigo/features/catalog/data/catalog_api_repository.dart';
 import 'package:traigo/features/catalog/domain/pricing.dart';
 import 'package:traigo/features/orders/data/orders_api_repository.dart';
@@ -15,6 +16,11 @@ void main() {
   setUp(() => h = ApiHarness());
 
   String path() => h.adapter.last.uri.path.replaceFirst('/api/v1', '');
+
+  test('las horas llevan la diferencia con UTC', () {
+    expect(apiDateTime(DateTime(2026, 12, 6, 9, 5)),
+        matches(r'^2026-12-06T09:05:00[+-]\d{2}:\d{2}$'));
+  });
 
   group('catálogo', () {
     test('busca por texto y categoría, y lee precios y stock', () async {
@@ -53,6 +59,8 @@ void main() {
   });
 
   group('ventas', () {
+    final promisedAt = DateTime(2026, 12, 6, 18);
+
     NewSale sale() => NewSale(
           clientUuid: '6f1a4f3e-0000-4000-8000-000000000001',
           origin: OrderOrigin.wholesale,
@@ -65,6 +73,7 @@ void main() {
             (productId: 'p-1109', quantity: 10),
           ],
           expectedTotal: Money.parse('2268'),
+          promisedAt: promisedAt,
         );
 
     test('filtra «Mis pedidos» por estado', () async {
@@ -89,7 +98,16 @@ void main() {
 
       expect(h.adapter.last.method, 'POST');
       expect(path(), '/orders');
-      expect(h.adapter.last.data, newSaleRequest);
+      // La hora viaja con la diferencia horaria del celular.
+      expect(h.adapter.last.data, {
+        ...newSaleRequest,
+        'delivery': {
+          'type': 'pickup',
+          'address': null,
+          'promised_at': apiDateTime(promisedAt),
+        },
+      });
+      expect(order.promisedAt, DateTime.parse('2026-12-06T18:00:00-04:00'));
       expect(h.adapter.last.headers['Idempotency-Key'], sale().clientUuid);
       expect(order.lines.single.priceType, PriceType.unit);
       expect(order.payment?.status, PaymentStatus.submitted);

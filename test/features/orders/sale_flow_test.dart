@@ -78,6 +78,7 @@ void main() {
     await tester.enterText(field('Nombre del cliente'), 'Mariela Quispe');
     await tester.enterText(field('WhatsApp'), '71234567');
     await scrollAndTap(tester, find.text('Presencial'));
+    await chooseDelivery(tester);
   }
 
   testWidgets('una venta completa: precio por mayor, cliente y pedido nuevo', (tester) async {
@@ -113,11 +114,16 @@ void main() {
     await tester.pump();
     expect(find.text('Elige cómo llegó'), findsOneWidget);
     await scrollAndTap(tester, find.text('Mayorista'));
+    expect(find.text('Elige el día de entrega'), findsOneWidget);
+    await scrollAndTap(tester, find.text('Mañana'));
+    expect(find.text('Elige la hora de entrega'), findsOneWidget);
+    await chooseDelivery(tester);
     await scrollAndTap(tester, find.text('Transferencia'));
     await scrollAndTap(tester, findTextContaining('Registrar venta · Bs 2.268'));
 
     // Abre el pedido nuevo.
     expect(find.textContaining('N-1047 · HOY'), findsOneWidget);
+    expect(findTextContaining('Mañana '), findsOneWidget);
     expect(find.text('Venta N-1047 registrada.'), findsOneWidget);
     expect(find.text('Por pagar'), findsOneWidget);
     expect(find.text('Subir comprobante'), findsOneWidget);
@@ -146,7 +152,7 @@ void main() {
     await tester.enterText(field('Dirección de entrega'), 'Av. Blanco Galindo km 4');
     await scrollAndTap(tester, find.text('Efectivo'));
 
-    expect(find.text('El efectivo se confirma cuando Jime valida la caja del día.'),
+    expect(find.textContaining('Queda «Pagado» para que almacén la entregue.'),
         findsOneWidget);
     expect(findTextContaining('Registrar venta · Bs 87'), findsOneWidget);
   });

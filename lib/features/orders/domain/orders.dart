@@ -232,6 +232,7 @@ class OrderDetail {
     required this.canUploadProof,
     this.customerPhone,
     this.shippingAddress,
+    this.promisedAt,
     this.payment,
     this.commission,
   });
@@ -246,6 +247,7 @@ class OrderDetail {
       customerPhone: json.strOrNull('customer_phone'),
       deliveryType: DeliveryType.fromApi(delivery.str('type')),
       shippingAddress: delivery.strOrNull('address'),
+      promisedAt: delivery.dateOrNull('promised_at'),
       lines: json.list('lines').map(OrderLine.fromJson).toList(),
       payment: payment == null ? null : OrderPayment.fromJson(payment),
       timeline: json.list('timeline').map(TimelineStep.fromJson).toList(),
@@ -260,6 +262,9 @@ class OrderDetail {
   final String? customerPhone;
   final DeliveryType deliveryType;
   final String? shippingAddress;
+
+  /// Fecha y hora acordadas para entregar. Los pedidos de la web no la tienen.
+  final DateTime? promisedAt;
   final List<OrderLine> lines;
   final OrderPayment? payment;
   final List<TimelineStep> timeline;
@@ -282,6 +287,7 @@ class NewSale {
     required this.paymentMethod,
     required this.lines,
     required this.expectedTotal,
+    required this.promisedAt,
     this.customerPhone,
     this.shippingAddress,
   });
@@ -298,10 +304,22 @@ class NewSale {
   final List<({String productId, int quantity})> lines;
   final Money expectedTotal;
 
+  /// La fecha y hora de entrega que se acordó con el cliente. De ahí sale si el
+  /// despacho llegó a tiempo.
+  final DateTime promisedAt;
+
+  /// Margen para «se lo lleva ahora»: mientras se termina de registrar, la hora
+  /// elegida puede quedar un poco atrás.
+  static const pastTolerance = Duration(minutes: 30);
+
   Json toJson() => {
         'origin': origin.apiValue,
         'customer': {'name': customerName, 'phone': customerPhone},
-        'delivery': {'type': deliveryType.apiValue, 'address': shippingAddress},
+        'delivery': {
+          'type': deliveryType.apiValue,
+          'address': shippingAddress,
+          'promised_at': apiDateTime(promisedAt),
+        },
         'payment_method': paymentMethod.apiValue,
         'lines': [
           for (final line in lines)

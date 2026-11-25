@@ -110,6 +110,7 @@ class CashToday {
     required this.paidOrders,
     required this.pendingOrders,
     required this.status,
+    this.pendingDays = 0,
   });
 
   factory CashToday.fromJson(Json json) => CashToday(
@@ -117,12 +118,16 @@ class CashToday {
         paidOrders: json.integer('paid_orders'),
         pendingOrders: json.integer('pending_orders'),
         status: CashStatus.fromApi(json.str('status')),
+        pendingDays: json.integerOrNull('pending_days') ?? 0,
       );
 
   final Money collected;
   final int paidOrders;
   final int pendingOrders;
   final CashStatus status;
+
+  /// Días anteriores sin enviar o que Jime observó.
+  final int pendingDays;
 }
 
 /// Todo lo que muestra el Inicio de un integrante.

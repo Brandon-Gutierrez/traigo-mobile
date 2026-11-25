@@ -90,17 +90,3 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
-
-/// Desplaza la pantalla hasta que [finder] se pueda tocar.
-Future<void> scrollUntil(WidgetTester tester, Finder finder, {bool up = false}) async {
-  await tester.scrollUntilVisible(
-    finder,
-    up ? -150 : 150,
-    scrollable: find.descendant(
-      of: find.byType(ListView).first,
-      matching: find.byType(Scrollable),
-    ).first,
-  );
-  await tester.ensureVisible(finder);
-  await tester.pumpAndSettle();
-}

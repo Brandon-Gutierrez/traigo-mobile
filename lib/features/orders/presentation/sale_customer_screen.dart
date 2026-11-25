@@ -129,6 +129,7 @@ class _SaleCustomerScreenState extends ConsumerState<SaleCustomerScreen> {
     final draft = ref.watch(saleDraftProvider);
     final cart = draft.cart;
     final error = _error;
+    final blocked = draft.blockedReason(ref.watch(nowProvider)());
 
     return SafeArea(
       bottom: false,
@@ -207,6 +208,8 @@ class _SaleCustomerScreenState extends ConsumerState<SaleCustomerScreen> {
               ),
             ],
             const SizedBox(height: 12),
+            _DeliveryTime(draft: draft, enabled: !_busy),
+            const SizedBox(height: 12),
             Labeled(
               '¿Cómo pagó?',
               child: ChoiceBlocks<PaymentMethod>(
@@ -225,7 +228,9 @@ class _SaleCustomerScreenState extends ConsumerState<SaleCustomerScreen> {
             const SizedBox(height: 5),
             Text(
               draft.paymentMethod == PaymentMethod.cash
-                  ? 'El efectivo se confirma cuando Jime valida la caja del día.'
+                  ? 'Queda «Pagado» para que almacén la entregue. Jime confirma el efectivo '
+                      'al validar la caja y recién ahí cuentan el bono y tu comisión. '
+                      'Después ya no la puedes cancelar.'
                   : 'La venta queda «por pagar» hasta que subas el comprobante y Jime lo confirme.',
               style: AppText.body(12.5, FontWeight.w400, color: AppColors.muted, height: 1.3),
             ),
@@ -249,8 +254,8 @@ class _SaleCustomerScreenState extends ConsumerState<SaleCustomerScreen> {
             CutButton(
               label: _busy
                   ? 'Registrando…'
-                  : (draft.blockedReason ?? 'Registrar venta · ${cart.total.formatInline()}'),
-              onPressed: draft.blockedReason == null ? _submit : null,
+                  : (blocked ?? 'Registrar venta · ${cart.total.formatInline()}'),
+              onPressed: blocked == null ? _submit : null,
               busy: _busy,
             ),
           ],
@@ -259,3 +264,91 @@ class _SaleCustomerScreenState extends ConsumerState<SaleCustomerScreen> {
     );
   }
 }
+
+/// «Entrega acordada»: el día y la hora que se le prometieron al cliente.
+class _DeliveryTime extends ConsumerWidget {
+  const _DeliveryTime({required this.draft, required this.enabled});
+
+  final SaleDraft draft;
+  final bool enabled;
+
+  static String _two(int n) => n.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = ref.watch(nowProvider)();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final date = draft.deliveryDate;
+    final time = draft.deliveryTime;
+    final controller = ref.read(saleDraftProvider.notifier);
+
+    final selected = date == null
+        ? null
+        : (DateUtils.isSameDay(date, today)
+            ? _Day.today
+            : (DateUtils.isSameDay(date, tomorrow) ? _Day.tomorrow : _Day.other));
+
+    Future<void> pickDay(_Day day) async {
+      if (!enabled) return;
+      if (day != _Day.other) {
+        controller.edit(
+          (d) => d.copyWith(deliveryDate: day == _Day.today ? today : tomorrow),
+        );
+        return;
+      }
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: date == null || date.isBefore(today) ? today : date,
+        firstDate: today,
+        lastDate: today.add(const Duration(days: 90)),
+        helpText: 'Día de entrega',
+      );
+      if (picked != null) controller.edit((d) => d.copyWith(deliveryDate: picked));
+    }
+
+    Future<void> pickTime() async {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: time ?? TimeOfDay(hour: (now.hour + 1) % 24, minute: 0),
+        helpText: 'Hora de entrega',
+      );
+      if (picked != null) controller.edit((d) => d.copyWith(deliveryTime: picked));
+    }
+
+    final timeText = time == null ? 'Elegir hora' : '${_two(time.hour)}:${_two(time.minute)}';
+
+    return Labeled(
+      'Entrega acordada con el cliente',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ChoiceBlocks<_Day>(
+            options: [
+              (_Day.today, 'Hoy'),
+              (_Day.tomorrow, 'Mañana'),
+              (
+                _Day.other,
+                selected == _Day.other
+                    ? '${_two(date!.day)}/${_two(date.month)}'
+                    : 'Otro día',
+              ),
+            ],
+            selected: selected,
+            onSelected: pickDay,
+          ),
+          const SizedBox(height: 8),
+          PickerField(
+            value: timeText,
+            placeholder: time == null,
+            icon: Icons.schedule,
+            semanticLabel: 'Hora de entrega: $timeText. Cambiar',
+            onTap: enabled ? pickTime : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _Day { today, tomorrow, other }
