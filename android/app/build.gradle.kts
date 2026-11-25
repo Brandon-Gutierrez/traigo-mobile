@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.traigo.vendedores"
+    namespace = "com.traigo.equipo"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.traigo.vendedores"
+        applicationId = "com.traigo.equipo"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

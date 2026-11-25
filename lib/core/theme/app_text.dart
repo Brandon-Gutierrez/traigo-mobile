@@ -4,22 +4,40 @@ import 'app_colors.dart';
 
 /// Familias de fuente declaradas en pubspec.yaml.
 abstract final class AppFonts {
-  static const body = 'Archivo';
-  static const mono = 'SpaceMono';
+  static const display = 'Oxanium';
+  static const body = 'IBMPlexSans';
+  static const mono = 'IBMPlexMono';
 }
 
 /// Estilos de texto del diseño.
 ///
-/// Archivo es una fuente **variable**: además de `fontWeight` se indica el eje
-/// `wght` con `fontVariations`, así el peso es el pedido en cualquier
-/// plataforma y Flutter no fabrica una negrita falsa encima.
+/// Oxanium e IBM Plex Sans son **variables**: además de `fontWeight` se indica el
+/// eje `wght` con `fontVariations`, así el peso es el pedido en cualquier
+/// plataforma. IBM Plex Mono es estática (400, 500 y 700).
 abstract final class AppText {
+  /// Títulos, cifras grandes y botones.
+  static TextStyle display(
+    double size, {
+    FontWeight weight = FontWeight.w700,
+    Color color = AppColors.ink,
+    double? height,
+  }) {
+    return TextStyle(
+      fontFamily: AppFonts.display,
+      fontSize: size,
+      fontWeight: weight,
+      fontVariations: [FontVariation.weight(weight.value.toDouble())],
+      fontFeatures: const [FontFeature.tabularFigures()],
+      color: color,
+      height: height,
+    );
+  }
+
   static TextStyle body(
     double size,
     FontWeight weight, {
-    Color color = AppColors.text,
+    Color color = AppColors.ink,
     double? height,
-    double? letterSpacing,
     TextDecoration? decoration,
   }) {
     return TextStyle(
@@ -29,45 +47,28 @@ abstract final class AppText {
       fontVariations: [FontVariation.weight(weight.value.toDouble())],
       color: color,
       height: height,
-      letterSpacing: letterSpacing,
       decoration: decoration,
+      decorationColor: color,
     );
   }
 
-  /// Para montos: cifras del mismo ancho, así las columnas no «bailan».
-  static TextStyle money(
-    double size,
-    FontWeight weight, {
-    Color color = AppColors.text,
-    double? height,
-  }) {
-    return body(size, weight, color: color, height: height)
-        .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
-  }
-
-  /// Etiqueta pequeña en mayúsculas («GANASTE HOY»). Nunca menor a 12.
-  static TextStyle label({Color color = AppColors.muted}) =>
-      body(12, FontWeight.w700, color: color, letterSpacing: 0.6);
-
-  /// Códigos y datos técnicos (TR-0151). Space Mono es estática.
+  /// Cifras de ficha (montos y datos alineados).
   static TextStyle mono(
     double size, {
     FontWeight weight = FontWeight.w400,
-    Color color = AppColors.text,
+    Color color = AppColors.ink,
+    double? letterSpacing,
   }) {
     return TextStyle(
       fontFamily: AppFonts.mono,
       fontSize: size,
       fontWeight: weight,
       color: color,
+      letterSpacing: letterSpacing,
     );
   }
-}
 
-extension WeightedTextStyle on TextStyle {
-  /// Cambia el peso manteniendo coherente el eje `wght` de Archivo.
-  TextStyle weighted(FontWeight weight) => copyWith(
-        fontWeight: weight,
-        fontVariations: [FontVariation.weight(weight.value.toDouble())],
-      );
+  /// Etiqueta de sección en mayúsculas («BONO DEL EQUIPO»). Nunca menor a 12.
+  static TextStyle label({Color color = AppColors.muted}) =>
+      mono(12, weight: FontWeight.w700, color: color, letterSpacing: 0.7);
 }

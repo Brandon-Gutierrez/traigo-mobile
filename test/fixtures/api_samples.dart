@@ -2,205 +2,186 @@
 /// docs/api-contract.md: si el contrato cambia, se cambian aquí y allá.
 library;
 
-const sellerJson = {'id': '1', 'code': 'ANA-07', 'name': 'Ana López'};
-const rulesJson = {'personal_rate': '0.40', 'fund_rate': '0.25'};
+const sellerMemberJson = {
+  'id': '4',
+  'code': 'ALI-04',
+  'name': 'Alison',
+  'role': 'seller',
+  'title': 'Ventas por comisión',
+};
+
+const controlMemberJson = {
+  'id': '1',
+  'code': 'JIM-01',
+  'name': 'Jime',
+  'role': 'control',
+  'title': 'Control y validación',
+};
 
 const loginResponse = {
-  'data': {'token': '1|k9sPq3', 'seller': sellerJson, 'rules': rulesJson},
+  'data': {'token': '12|k9sPq3', 'member': sellerMemberJson},
+};
+
+const secondStepResponse = {
+  'data': {
+    'two_factor': {
+      'challenge_id': '9f3a1c',
+      'expires_at': '2026-12-06T18:05:00-04:00',
+      'resend_at': '2026-12-06T18:00:45-04:00',
+      'code_length': 6,
+    },
+  },
+};
+
+const resendResponse = {
+  'data': {
+    'challenge_id': '71be02',
+    'expires_at': '2026-12-06T18:06:00-04:00',
+    'resend_at': '2026-12-06T18:01:45-04:00',
+    'code_length': 6,
+  },
+};
+
+const twoFactorResponse = {
+  'data': {'token': '13|Zr81aa', 'member': controlMemberJson},
 };
 
 const meResponse = {
-  'data': {'seller': sellerJson, 'rules': rulesJson},
+  'data': {'member': sellerMemberJson},
 };
 
-const catalogPage = {
-  'data': [
-    {
-      'id': '1',
-      'kind': 'product',
-      'code': 'TR-0151',
-      'name': 'Audífonos bluetooth ANC con estuche',
-      'category': 'Audio',
-      'image_url': null,
-      'suggested_price': '120.00',
-      'min_price': '90.00',
-      'stock': 34,
-      'low_stock_alert': 10,
-      'components': [],
-    },
-    {
-      'id': '1',
-      'kind': 'combo',
-      'code': 'CMB-01',
-      'name': 'Combo Escritorio Pro',
-      'category': 'Combos',
-      'image_url': null,
-      'suggested_price': '199.00',
-      'min_price': '191.00',
-      'stock': 12,
-      'low_stock_alert': 5,
-      'components': [
-        {'name': 'Lámpara luna LED recargable', 'quantity': 1},
-        {'name': 'Audífonos bluetooth ANC con estuche', 'quantity': 1},
-        {'name': 'Organizador plegable multiuso', 'quantity': 1},
-      ],
-    },
-  ],
-  'meta': {'current_page': 1, 'last_page': 5, 'per_page': 30, 'total': 124},
-};
-
-const orderDetailResponse = {
-  'data': {
-    'id': '131',
-    'number': '131',
-    'created_at': '2026-11-23T11:20:00-04:00',
-    'customer_name': 'Mariela Quispe',
-    'items_label': 'Combo Escritorio Pro',
-    'total': '199.00',
-    'payment_method': 'qr',
-    'status': 'pending_payment',
-    'commission': {'amount': '3.20', 'state': 'pending'},
-    'customer_whatsapp': '71234567',
-    'delivery': {'type': 'delivery', 'address': 'Av. Blanco Galindo km 4', 'city': null},
-    'lines': [
-      {
-        'kind': 'combo',
-        'item_id': '1',
-        'code': 'CMB-01',
-        'name': 'Combo Escritorio Pro',
-        'quantity': 1,
-        'unit_price': '199.00',
-        'min_price': '191.00',
-      },
-    ],
-    'breakdown': {'gain': '8.00', 'personal': '3.20', 'fund': '2.00'},
-    'payment_proof': {
-      'status': 'uploaded',
-      'url': 'https://api.traigo.bo/storage/proofs/131.jpg',
-      'uploaded_at': '2026-11-23T11:25:00-04:00',
-      'rejection_reason': null,
-    },
-    'timeline': [
-      {'key': 'registered', 'at': '2026-11-23T11:20:00-04:00'},
-      {'key': 'payment_confirmed', 'at': null},
-      {'key': 'delivered', 'at': null},
-    ],
-  },
-};
-
-const ordersPage = {
-  'data': [
-    {
-      'id': '131',
-      'number': '131',
-      'created_at': '2026-11-23T11:20:00-04:00',
-      'customer_name': 'Mariela Quispe',
-      'items_label': 'Combo Escritorio Pro',
-      'total': '199.00',
-      'payment_method': 'qr',
-      'status': 'pending_payment',
-      'commission': {'amount': '3.20', 'state': 'pending'},
-    },
-  ],
-  'meta': {'current_page': 1, 'last_page': 1, 'per_page': 20, 'total': 1},
-};
-
-const homeResponse = {
-  'data': {
-    'today': {'commission': '86.40', 'sales_count': 5, 'sold_total': '1080.00'},
-    'month': {
-      'personal_commission': '1340.00',
-      'fund_share': '643.33',
-      'estimated_total': '1983.33',
-    },
-    'fund': {'current': '3860.00', 'goal': '5000.00', 'prize_label': null},
-    'payout_note': null,
-    'recent_orders': [
-      {
-        'id': '131',
-        'number': '131',
-        'created_at': '2026-11-23T11:20:00-04:00',
-        'customer_name': 'Mariela Quispe',
-        'items_label': 'Combo Escritorio Pro',
-        'total': '199.00',
-        'payment_method': 'qr',
-        'status': 'pending_payment',
-        'commission': {'amount': '3.20', 'state': 'pending'},
-      },
-    ],
-  },
-};
-
-const stockSummaryResponse = {
-  'data': {
-    'products_total': 124,
-    'low_count': 2,
-    'out_count': 1,
-    'attention_items': [
-      {
-        'id': '3',
-        'kind': 'product',
-        'code': 'TR-0133',
-        'name': 'Termo digital 500 ml',
-        'category': 'Cocina',
-        'image_url': null,
-        'suggested_price': '75.00',
-        'min_price': '48.00',
-        'stock': 3,
-        'low_stock_alert': 10,
-        'components': [],
-      },
-    ],
-  },
-};
-
-const movementsPage = {
-  'data': [
-    {
-      'id': '901',
-      'occurred_at': '2026-11-23T11:20:00-04:00',
-      'quantity_delta': -1,
-      'item_name': 'Combo Escritorio Pro',
-      'description': 'Venta #131 de Ana',
-      'type': 'sale',
-      'pending': false,
-    },
-  ],
-  'meta': {'current_page': 1, 'last_page': 1, 'per_page': 20, 'total': 1},
-};
-
-const wasteResponse = {
-  'data': {
-    'id': '19',
-    'item_id': '3',
-    'item_name': 'Termo digital 500 ml',
-    'quantity': 1,
-    'reason': 'damaged',
-    'status': 'pending',
-    'note': 'Se cayó del estante',
-    'created_at': '2026-11-23T09:12:00-04:00',
-  },
-};
-
-// Errores
 const invalidCredentialsError = {'message': 'Código o PIN incorrectos.'};
 
-const priceBelowMinimumError = {
-  'message': 'No puedes vender Audífonos bluetooth ANC con estuche por debajo de Bs 90.',
-  'code': 'price_below_minimum',
-  'errors': {
-    'lines.0.unit_price': ['El precio mínimo es Bs 90.'],
+const invalidSecondStepError = {
+  'message': 'El código no es correcto.',
+  'code': 'two_factor_invalid',
+};
+
+const weekJson = {
+  'label': '1–6 dic',
+  'starts_on': '2026-12-01',
+  'ends_on': '2026-12-06',
+  'target': '40000.00',
+  'base_prize': '1500.00',
+};
+
+/// Inicio de quien vende por comisión.
+const sellerHomeResponse = {
+  'data': {
+    'week': weekJson,
+    'collected': '41600.00',
+    'fund_share_rate': '0.20',
+    'kpi': {
+      'score_percent': 83,
+      'minimum_percent': 80,
+      'compliance': 'passes',
+      'deliverables': null,
+      'indicators': [
+        {
+          'id': '41',
+          'name': 'Nuevos compradores contactados',
+          'target': 27,
+          'actual': 25,
+          'weight': '0.30',
+          'evidence_status': 'validated',
+        },
+        {
+          'id': '44',
+          'name': 'Registro semanal de ventas',
+          'target': 1,
+          'actual': null,
+          'weight': '0.10',
+          'evidence_status': 'in_review',
+        },
+      ],
+    },
+    'month_commission': {'amount': '412.50', 'pay_note': null},
+    'today_sales': [
+      {
+        'id': '1046',
+        'created_at': '2026-12-06T11:09:00-04:00',
+        'items_label': 'Tomatodos de Messi × 2',
+        'customer_name': 'Mariela Quispe',
+        'total': '174.00',
+        'payment_method': 'qr',
+      },
+    ],
+    'cash_today': null,
   },
-  'data': {'kind': 'product', 'item_id': '1', 'min_price': '90.00'},
 };
 
-const insufficientStockError = {
-  'message': 'Solo quedan 3 de Termo digital 500 ml.',
-  'code': 'insufficient_stock',
-  'data': {'kind': 'product', 'item_id': '3', 'available': 3},
+/// Inicio de almacén: con caja del día y sin comisiones.
+const warehouseHomeResponse = {
+  'data': {
+    'week': weekJson,
+    'collected': '41600.00',
+    'fund_share_rate': 0.2,
+    'kpi': {
+      'score_percent': 97,
+      'minimum_percent': 90,
+      'compliance': 'passes',
+      'indicators': <Object>[],
+    },
+    'month_commission': null,
+    'today_sales': <Object>[],
+    'cash_today': {
+      'collected': '4968.00',
+      'paid_orders': 7,
+      'pending_orders': 1,
+      'status': 'open',
+    },
+  },
 };
 
-const notCancellableError = {
-  'message': 'Este pedido ya no se puede cancelar porque el pago fue confirmado.',
-  'code': 'not_cancellable',
+/// Inicio de Sistemas: con entregas técnicas.
+const systemsHomeResponse = {
+  'data': {
+    'week': weekJson,
+    'collected': '41600.00',
+    'fund_share_rate': '0.10',
+    'kpi': {
+      'score_percent': 100,
+      'minimum_percent': 90,
+      'compliance': 'pending',
+      'deliverables': {'approved': 2, 'total': 4},
+      'closed_reason': null,
+      'indicators': <Object>[],
+    },
+  },
+};
+
+const controlSummaryResponse = {
+  'data': {
+    'as_of': '2026-12-06T18:00:00-04:00',
+    'week': weekJson,
+    'collected': '41600.00',
+    'pending': {'payments': 3, 'evidence': 2, 'cash_closings': 1, 'deliverables': 1},
+    'members': [
+      {
+        'id': '5',
+        'name': 'Kim',
+        'score_percent': 85,
+        'minimum_percent': 90,
+        'compliance': 'fails',
+        'fund_share_rate': '0.20',
+        'note': null,
+      },
+      {
+        'id': '6',
+        'name': 'Sistemas 1',
+        'score_percent': 100,
+        'minimum_percent': 90,
+        'compliance': 'pending',
+        'fund_share_rate': '0.10',
+        'note': '2 de 4 entregas validadas',
+      },
+    ],
+    'bonus': {
+      'level': 'complete',
+      'prize': '1500.00',
+      'payable': '1050.00',
+      'unpaid_failing': '300.00',
+      'unpaid_pending': '150.00',
+    },
+  },
 };

@@ -1,5 +1,5 @@
 name: traigo
-description: "Traigo Vendedores: app móvil del equipo de ventas de Traigo Importaciones."
+description: "Traigo Equipo: app móvil del equipo de Traigo Importaciones (integrantes, Jime y Dirección)."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -65,28 +65,44 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Tipografías del diseño (licencia OFL, de Google Fonts).
-  # Archivo es una fuente variable: el mismo archivo se declara con cada peso
-  # para que Flutter no fabrique negritas falsas; el peso real se aplica con
+  # Tipografías del diseño «Ficha técnica» (licencia OFL, de Google Fonts).
+  # Oxanium e IBM Plex Sans son variables: el mismo archivo se declara con cada
+  # peso para que Flutter no fabrique negritas falsas; el peso real se aplica con
   # `fontVariations` (ver lib/core/theme/app_text.dart).
   fonts:
-    - family: Archivo
+    - family: Oxanium
       fonts:
-        - asset: assets/fonts/Archivo-Variable.ttf
-          weight: 400
-        - asset: assets/fonts/Archivo-Variable.ttf
-          weight: 500
-        - asset: assets/fonts/Archivo-Variable.ttf
+        - asset: assets/fonts/oxanium/Oxanium-Variable.ttf
           weight: 600
-        - asset: assets/fonts/Archivo-Variable.ttf
+        - asset: assets/fonts/oxanium/Oxanium-Variable.ttf
           weight: 700
-        - asset: assets/fonts/Archivo-Variable.ttf
+        - asset: assets/fonts/oxanium/Oxanium-Variable.ttf
           weight: 800
-    - family: SpaceMono
+    - family: IBMPlexSans
       fonts:
-        - asset: assets/fonts/SpaceMono-Regular.ttf
-        - asset: assets/fonts/SpaceMono-Bold.ttf
+        - asset: assets/fonts/ibmplexsans/IBMPlexSans-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/ibmplexsans/IBMPlexSans-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/ibmplexsans/IBMPlexSans-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/ibmplexsans/IBMPlexSans-Variable.ttf
           weight: 700
+    - family: IBMPlexMono
+      fonts:
+        - asset: assets/fonts/ibmplexmono/IBMPlexMono-Regular.ttf
+        - asset: assets/fonts/ibmplexmono/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/ibmplexmono/IBMPlexMono-Bold.ttf
+          weight: 700
+
+  assets:
+    # Logo oficial recortado de los archivos del cliente (fondo transparente).
+    - assets/brand/
+    # Licencias de las fuentes (se muestran en la pantalla de licencias).
+    - assets/fonts/oxanium/OFL.txt
+    - assets/fonts/ibmplexsans/OFL.txt
+    - assets/fonts/ibmplexmono/OFL.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:

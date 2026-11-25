@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 
-/// Errores que la app sabe explicar al vendedor. Todo error de red o de
+/// Errores que la app sabe explicar a quien la usa. Todo error de red o de
 /// servidor se convierte en uno de estos antes de llegar a la pantalla.
 sealed class ApiException implements Exception {
   const ApiException(this.message);
@@ -92,7 +92,7 @@ final class ConflictException extends ApiException {
   final Object? data;
 }
 
-/// 422: datos inválidos. Ej: `price_below_minimum`.
+/// 422: datos inválidos. Ej: `two_factor_invalid`.
 final class ValidationException extends ApiException {
   const ValidationException({
     required String message,

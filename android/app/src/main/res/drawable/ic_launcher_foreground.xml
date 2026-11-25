@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La «T» (barra 111x17, asta 17, alto 96 medidos en el logo) dentro de la zona segura. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,33.25 H78 V40.6 H57.68 V74.75 H50.32 V40.6 H30 Z" />
+</vector>

@@ -2,266 +2,160 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/core/demo/demo_backend.dart';
 import 'package:traigo/core/money/money.dart';
 import 'package:traigo/core/network/api_exception.dart';
-import 'package:traigo/features/catalog/domain/catalog.dart';
-import 'package:traigo/features/orders/domain/orders.dart';
-import 'package:traigo/features/waste/domain/waste.dart';
+import 'package:traigo/features/auth/domain/auth.dart';
+import 'package:traigo/features/home/domain/home.dart';
+import 'package:traigo/features/team/domain/bonus.dart';
 
-/// El servidor de prueba debe comportarse como el backend real descrito en
-/// docs/api-contract.md. Estas pruebas fijan esas reglas.
-CreateOrderInput sale({
-  String requestId = 'req-1',
-  List<SaleLineInput>? lines,
-  PaymentMethod payment = PaymentMethod.qr,
-  DeliveryInput? delivery,
-  String customer = 'Carla Rojas',
-}) {
-  return CreateOrderInput(
-    clientRequestId: requestId,
-    lines: lines ??
-        [
-          SaleLineInput(
-            kind: CatalogKind.product,
-            itemId: '1',
-            quantity: 1,
-            unitPrice: Money.parse('120'),
-          ),
-        ],
-    customer: CustomerInput(name: customer, whatsapp: '74567890'),
-    paymentMethod: payment,
-    delivery: delivery ?? const DeliveryInput(type: DeliveryType.handoff),
-  );
-}
-
-int stockOf(DemoBackend b, CatalogKind kind, String id) =>
-    b.catalogItem(kind, id).stock;
+Matcher throwsCode(String code) =>
+    throwsA(isA<ValidationException>().having((e) => e.code, 'code', code));
 
 void main() {
+  late DateTime now;
   late DemoBackend backend;
 
-  setUp(() => backend = DemoBackend());
+  setUp(() {
+    now = DateTime(2026, 12, 6, 18);
+    backend = DemoBackend(clock: () => now);
+  });
 
-  group('sesión', () {
-    test('ingresa con código y PIN correctos, sin importar mayúsculas', () {
-      expect(backend.login('ana-07', '1234').seller.name, 'Ana López');
+  TwoFactorChallenge challengeFor(String code) =>
+      (backend.login(code, '1234') as NeedsSecondStep).challenge;
+
+  TeamHome homeOf(String code) {
+    backend.login(code, '1234');
+    return backend.home();
+  }
+
+  group('ingreso', () {
+    test('el PIN o el código equivocados no entran', () {
+      expect(() => backend.login('ALI-04', '0000'), throwsA(isA<UnauthorizedException>()));
+      expect(() => backend.login('NADIE-1', '1234'), throwsA(isA<UnauthorizedException>()));
+      expect(backend.current, isNull);
     });
 
-    test('rechaza un PIN incorrecto', () {
-      expect(() => backend.login('ANA-07', '0000'), throwsA(isA<UnauthorizedException>()));
+    test('el equipo entra directo; el código no distingue mayúsculas', () {
+      final outcome = backend.login(' ali-04 ', '1234');
+      expect((outcome as SignedIn).session.member.name, 'Alison');
+    });
+
+    test('Jime y Dirección necesitan el segundo paso', () {
+      for (final code in ['JIM-01', 'DIR-08']) {
+        expect(backend.login(code, '1234'), isA<NeedsSecondStep>(), reason: code);
+        expect(backend.current, isNull);
+      }
+    });
+
+    test('un código de verificación equivocado no entra y permite reintentar', () {
+      final challenge = challengeFor('JIM-01');
+      expect(
+        () => backend.verifyTwoFactor(challenge.id, '000000'),
+        throwsCode('two_factor_invalid'),
+      );
+      final session = backend.verifyTwoFactor(challenge.id, '123456');
+      expect(session.member.role, MemberRole.control);
+    });
+
+    test('el código de verificación vence', () {
+      final challenge = challengeFor('JIM-01');
+      now = now.add(const Duration(minutes: 5, seconds: 1));
+      expect(
+        () => backend.verifyTwoFactor(challenge.id, '123456'),
+        throwsCode('two_factor_expired'),
+      );
+    });
+
+    test('reenviar exige esperar y anula el código anterior', () {
+      final first = challengeFor('DIR-08');
+      expect(() => backend.resendTwoFactor(first.id), throwsA(isA<RateLimitedException>()));
+
+      now = now.add(const Duration(seconds: 45));
+      final second = backend.resendTwoFactor(first.id);
+      expect(second.id, isNot(first.id));
+      expect(
+        () => backend.verifyTwoFactor(first.id, '123456'),
+        throwsCode('two_factor_expired'),
+      );
+      expect(backend.verifyTwoFactor(second.id, '123456').member.name, 'Dirección');
     });
   });
 
-  group('catálogo', () {
-    test('mezcla productos y combos', () {
-      final all = backend.listCatalog().items;
-      expect(all.where((i) => i.kind == CatalogKind.product), hasLength(8));
-      expect(all.where((i) => i.kind == CatalogKind.combo), hasLength(3));
-    });
-
-    test('el stock de un combo es el del componente que más escasea', () {
-      // CMB-02 usa el termo, que tiene 3.
-      expect(stockOf(backend, CatalogKind.combo, '2'), 3);
-    });
-
-    test('busca por nombre o por código sin importar mayúsculas', () {
-      expect(backend.listCatalog(search: 'lámpara').items, hasLength(1));
-      expect(backend.listCatalog(search: 'tr-0151').items.single.name, contains('Audífonos'));
-    });
-  });
-
-  group('registrar venta', () {
-    test('crea el pedido por confirmar y descuenta el stock', () {
-      final before = stockOf(backend, CatalogKind.product, '1');
-      final order = backend.createOrder(sale());
-
-      expect(order.status, OrderStatus.pendingPayment);
-      expect(order.number, '132');
-      expect(order.total.toApi(), '120.00');
-      expect(order.breakdown.gain.toApi(), '30.00');
-      expect(order.commission.amount.toApi(), '12.00');
-      expect(order.commission.state, CommissionState.pending);
-      expect(order.paymentProof.status, ProofStatus.missing);
-      expect(stockOf(backend, CatalogKind.product, '1'), before - 1);
-      expect(backend.listOrders().items.first.id, order.id);
-    });
-
-    test('el pago en efectivo no lleva comprobante', () {
-      final order = backend.createOrder(sale(payment: PaymentMethod.cash));
-      expect(order.paymentProof.status, ProofStatus.notRequired);
-    });
-
-    test('rechaza vender por debajo del mínimo y no toca el stock', () {
-      final before = stockOf(backend, CatalogKind.product, '1');
-      expect(
-        () => backend.createOrder(sale(lines: [
-          SaleLineInput(
-            kind: CatalogKind.product,
-            itemId: '1',
-            quantity: 1,
-            unitPrice: Money.parse('89.99'),
-          ),
-        ])),
-        throwsA(
-          isA<ValidationException>().having((e) => e.code, 'code', 'price_below_minimum'),
-        ),
-      );
-      expect(stockOf(backend, CatalogKind.product, '1'), before);
-    });
-
-    test('rechaza vender más de lo que hay y avisa cuántas quedan', () {
-      expect(
-        () => backend.createOrder(sale(lines: [
-          SaleLineInput(
-            kind: CatalogKind.product,
-            itemId: '3', // termo: quedan 3
-            quantity: 4,
-            unitPrice: Money.parse('75'),
-          ),
-        ])),
-        throwsA(
-          isA<ConflictException>()
-              .having((e) => e.code, 'code', 'insufficient_stock')
-              .having((e) => (e.data as Map)['available'], 'available', 3),
-        ),
-      );
-      expect(stockOf(backend, CatalogKind.product, '3'), 3);
-    });
-
-    test('un combo descuenta una unidad de cada producto que lo forma', () {
-      final lamp = stockOf(backend, CatalogKind.product, '2');
-      final headphones = stockOf(backend, CatalogKind.product, '1');
-      final organizer = stockOf(backend, CatalogKind.product, '5');
-
-      backend.createOrder(sale(lines: [
-        SaleLineInput(
-          kind: CatalogKind.combo,
-          itemId: '1',
-          quantity: 1,
-          unitPrice: Money.parse('199'),
-        ),
-      ]));
-
-      expect(stockOf(backend, CatalogKind.product, '2'), lamp - 1);
-      expect(stockOf(backend, CatalogKind.product, '1'), headphones - 1);
-      expect(stockOf(backend, CatalogKind.product, '5'), organizer - 1);
-    });
-
-    test('registrar dos veces con la misma clave devuelve el mismo pedido', () {
-      final before = stockOf(backend, CatalogKind.product, '1');
-      final first = backend.createOrder(sale(requestId: 'dup'));
-      final second = backend.createOrder(sale(requestId: 'dup'));
-
-      expect(second.id, first.id);
-      expect(stockOf(backend, CatalogKind.product, '1'), before - 1);
-    });
-
-    test('exige los datos del cliente y de la entrega', () {
-      expect(
-        () => backend.createOrder(sale(customer: '  ')),
-        throwsA(isA<ValidationException>().having(
-          (e) => e.firstErrorFor('customer.name'),
-          'customer.name',
-          isNotNull,
-        )),
-      );
-      expect(
-        () => backend.createOrder(sale(delivery: const DeliveryInput(type: DeliveryType.delivery))),
-        throwsA(isA<ValidationException>().having(
-          (e) => e.firstErrorFor('delivery.address'),
-          'delivery.address',
-          isNotNull,
-        )),
-      );
-      expect(
-        () => backend.createOrder(sale(delivery: const DeliveryInput(type: DeliveryType.otherCity))),
-        throwsA(isA<ValidationException>().having(
-          (e) => e.firstErrorFor('delivery.city'),
-          'delivery.city',
-          isNotNull,
-        )),
-      );
-    });
-  });
-
-  group('cancelar y comprobante', () {
-    test('cancelar un pedido por confirmar devuelve el stock y revierte la comisión', () {
-      final before = stockOf(backend, CatalogKind.product, '1');
-      final order = backend.createOrder(sale());
-      final cancelled = backend.cancelOrder(order.id);
-
-      expect(cancelled.status, OrderStatus.cancelled);
-      expect(cancelled.commission.state, CommissionState.reverted);
-      expect(stockOf(backend, CatalogKind.product, '1'), before);
-    });
-
-    test('no se puede cancelar un pedido con el pago ya confirmado', () {
-      // El #130 de los datos de prueba está en preparación.
-      expect(
-        () => backend.cancelOrder('130'),
-        throwsA(isA<ConflictException>().having((e) => e.code, 'code', 'not_cancellable')),
-      );
-    });
-
-    test('subir el comprobante lo deja en revisión', () {
-      final order = backend.createOrder(sale());
-      final updated = backend.uploadPaymentProof(order.id);
-      expect(updated.paymentProof.status, ProofStatus.uploaded);
-      expect(updated.paymentProof.uploadedAt, isNotNull);
-    });
-
-    test('un pago en efectivo no acepta comprobante', () {
-      final order = backend.createOrder(sale(payment: PaymentMethod.cash));
-      expect(() => backend.uploadPaymentProof(order.id), throwsA(isA<ValidationException>()));
-    });
-  });
-
-  group('merma', () {
-    CreateWasteInput waste({String id = 'w-1', int quantity = 1, String item = '3'}) =>
-        CreateWasteInput(
-          clientRequestId: id,
-          itemId: item,
-          quantity: quantity,
-          reason: WasteReason.damaged,
-          note: 'Se cayó del estante',
+  group('primera semana según el Excel', () {
+    test('cada integrante tiene su puntaje, su mínimo y su resultado', () {
+      const expected = {
+        'AIL-02': (93, 90, Compliance.passes, 0.20),
+        'ISA-03': (97, 90, Compliance.passes, 0.20),
+        'ALI-04': (83, 80, Compliance.passes, 0.20),
+        'KIM-05': (85, 90, Compliance.fails, 0.20),
+        'SIS-06': (100, 90, Compliance.pending, 0.10),
+        'SIS-07': (95, 90, Compliance.passes, 0.10),
+      };
+      for (final MapEntry(key: code, value: (score, minimum, compliance, share))
+          in expected.entries) {
+        final home = homeOf(code);
+        expect(home.kpi.scorePercent, score, reason: code);
+        expect(home.kpi.minimumPercent, minimum, reason: code);
+        expect(home.kpi.compliance, compliance, reason: code);
+        expect(home.fundShareRate, share, reason: code);
+        expect(
+          home.kpi.indicators.fold<double>(0, (sum, i) => sum + i.weight),
+          closeTo(1, 1e-9),
+          reason: 'los pesos de $code suman 100 %',
         );
-
-    test('queda pendiente y no baja el stock hasta que el admin apruebe', () {
-      final before = stockOf(backend, CatalogKind.product, '3');
-      final report = backend.createWaste(waste());
-
-      expect(report.status, WasteStatus.pending);
-      expect(stockOf(backend, CatalogKind.product, '3'), before);
-      expect(backend.movements().items.first.pending, isTrue);
+      }
     });
 
-    test('no deja reportar más de lo que hay en bodega', () {
+    test('las partes del fondo suman 100 %', () {
+      final rates = [
+        for (final m in DemoBackend.members.where((m) => !m.role.isControlSide))
+          homeOf(m.code).fundShareRate,
+      ];
+      expect(rates.fold<double>(0, (a, b) => a + b), closeTo(1, 1e-9));
+    });
+
+    test('cada puesto recibe solo lo suyo', () {
+      final alison = homeOf('ALI-04');
+      expect(alison.monthCommission?.amount, Money.parse('412.50'));
+      expect(alison.todaySales, hasLength(2));
+      expect(alison.cashToday, isNull);
+
+      final isai = homeOf('ISA-03');
+      expect(isai.cashToday?.collected, Money.parse('4968'));
+      expect(isai.monthCommission, isNull);
+      expect(isai.todaySales, isEmpty);
+
+      expect(homeOf('SIS-06').kpi.deliverables?.approved, 2);
+      expect(homeOf('AIL-02').kpi.deliverables, isNull);
+    });
+
+    test('el resumen de control cuadra con lo que ve cada integrante', () {
+      final evidenceInReview = [
+        for (final m in DemoBackend.members.where((m) => !m.role.isControlSide))
+          ...homeOf(m.code).kpi.indicators.where((i) => i.evidence.apiValue == 'in_review'),
+      ];
+
+      backend.verifyTwoFactor(challengeFor('JIM-01').id, '123456');
+      final summary = backend.controlSummary();
+
+      expect(summary.percent, 104);
+      expect(summary.members, hasLength(6));
+      expect(summary.pending.evidence, evidenceInReview.length);
+      expect(summary.pending.total, 7);
+      expect(summary.bonus.level, BonusLevel.complete);
+      expect(summary.bonus.payable, Money.parse('1050'));
+      expect(summary.bonus.unpaidFailing, Money.parse('300'));
+      expect(summary.bonus.unpaidPending, Money.parse('150'));
       expect(
-        () => backend.createWaste(waste(quantity: 50)),
-        throwsA(isA<ValidationException>()),
+        summary.members.singleWhere((m) => m.name == 'Sistemas 1').note,
+        '2 de 4 entregas validadas',
       );
     });
 
-    test('es idempotente por clave', () {
-      final a = backend.createWaste(waste(id: 'same'));
-      final b = backend.createWaste(waste(id: 'same'));
-      expect(b.id, a.id);
-      expect(backend.listWaste().total, 1);
-    });
-  });
-
-  group('inicio y stock', () {
-    test('la comisión del día suma la de las ventas nuevas', () {
-      expect(backend.home().today.commission.toApi(), '86.40');
-      backend.createOrder(sale()); // gana 12,00
-      final home = backend.home();
-      expect(home.today.commission.toApi(), '98.40');
-      expect(home.today.salesCount, 6);
-      expect(home.recentOrders.first.number, '132');
-    });
-
-    test('el resumen de stock separa poco stock de agotados', () {
-      final summary = backend.stockSummary();
-      expect(summary.outCount, 1); // proyector
-      expect(summary.lowCount, 2); // termo y masajeador
+    test('cada lado solo ve lo suyo y sin sesión no hay datos', () {
+      expect(backend.home, throwsA(isA<UnauthorizedException>()));
+      backend.login('ALI-04', '1234');
+      expect(backend.controlSummary, throwsA(isA<NotFoundException>()));
+      backend.verifyTwoFactor(challengeFor('JIM-01').id, '123456');
+      expect(backend.home, throwsA(isA<NotFoundException>()));
     });
   });
 }

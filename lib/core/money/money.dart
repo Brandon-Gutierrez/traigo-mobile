@@ -63,6 +63,10 @@ class Money implements Comparable<Money> {
   /// Siempre con dos decimales: `Bs 1.340,00`.
   String formatFixed({bool symbol = true}) => _format(symbol: symbol, fixed: true);
 
+  /// Como [format], pero con espacio fijo: dentro de una frase «Bs» no se
+  /// separa de la cifra.
+  String formatInline() => format().replaceFirst(' ', String.fromCharCode(0xA0));
+
   String _format({required bool symbol, required bool fixed}) {
     final abs = cents.abs();
     final whole = _group(abs ~/ 100);

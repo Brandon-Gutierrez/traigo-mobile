@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/app/app.dart';
 import 'package:traigo/core/config/app_config.dart';
+import 'package:traigo/core/demo/demo_backend.dart';
 import 'package:traigo/core/demo/demo_repositories.dart';
 import 'package:traigo/core/providers.dart';
 import 'package:traigo/core/storage/last_code_storage.dart';
@@ -31,13 +32,15 @@ Widget testApp({
   );
 }
 
-/// Token de una sesión de demo ya iniciada.
-MemoryTokenStorage signedInTokens() => MemoryTokenStorage(DemoAuthRepository.demoToken);
+/// Token de una sesión de demo ya iniciada con el integrante [code].
+MemoryTokenStorage signedInTokens([String code = 'ALI-04']) => MemoryTokenStorage(
+      DemoAuthRepository.tokenFor(DemoBackend.members.firstWhere((m) => m.code == code).id),
+    );
 
-/// Pantalla de celular (390 × [height] puntos). Un desbordamiento de
+/// Pantalla de celular ([width] × [height] puntos). Un desbordamiento de
 /// contenido hace fallar la prueba, así que sirve para vigilar el diseño.
-void useMobileScreen(WidgetTester tester, {double height = 844}) {
-  tester.view.physicalSize = Size(390 * 3, height * 3);
+void useMobileScreen(WidgetTester tester, {double width = 390, double height = 844}) {
+  tester.view.physicalSize = Size(width * 3, height * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 }
@@ -47,8 +50,24 @@ void useMobileScreen(WidgetTester tester, {double height = 844}) {
 Finder findTextContaining(String fragment) => find.byWidgetPredicate(
       (widget) =>
           widget is Text &&
-          (widget.data ?? '').replaceAll(' ', ' ').contains(fragment),
+          (widget.data ?? '').replaceAll(String.fromCharCode(0xA0), ' ').contains(fragment),
     );
 
 ProviderContainer containerOf(WidgetTester tester) =>
     ProviderScope.containerOf(tester.element(find.byType(TraigoApp)));
+
+/// Escribe en el teclado numérico de la app.
+Future<void> tapDigits(WidgetTester tester, String digits) async {
+  for (final digit in digits.split('')) {
+    await tester.tap(find.byKey(ValueKey('pin-key-$digit')));
+    await tester.pump();
+  }
+}
+
+/// Toca [finder] aunque esté más abajo en una pantalla con desplazamiento.
+Future<void> scrollAndTap(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}

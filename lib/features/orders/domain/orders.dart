@@ -1,97 +1,96 @@
+/// Ventas registradas desde la app.
+library;
+
 import '../../../core/money/money.dart';
-import '../../../core/network/api_client.dart' show UploadFile;
 import '../../../core/network/json.dart';
 import '../../../core/network/paged_result.dart';
-import '../../catalog/domain/catalog.dart';
+import '../../../core/network/upload_file.dart';
+import '../../catalog/domain/pricing.dart';
+import 'payment_method.dart';
 
-enum PaymentMethod {
-  qr('qr'),
-  cash('cash');
+export '../../../core/network/upload_file.dart';
+export 'payment_method.dart';
 
-  const PaymentMethod(this.apiValue);
+/// Cómo llegó la venta. La app no registra ventas web.
+enum OrderOrigin {
+  inPerson('in_person', 'Presencial'),
+  whatsapp('whatsapp', 'WhatsApp'),
+  wholesale('wholesale', 'Mayorista'),
+  web('web', 'Web');
+
+  const OrderOrigin(this.apiValue, this.label);
   final String apiValue;
+  final String label;
 
-  static PaymentMethod fromApi(String v) => values.firstWhere((e) => e.apiValue == v);
-}
-
-enum DeliveryType {
-  /// Entrega en mano o encuentro con el vendedor.
-  handoff('handoff'),
-
-  /// Delivery propio en Cochabamba. Pide dirección.
-  delivery('delivery'),
-
-  /// Envío a otra ciudad por flota. Pide ciudad.
-  otherCity('other_city'),
-
-  /// El cliente recoge en el punto.
-  pickup('pickup');
-
-  const DeliveryType(this.apiValue);
-  final String apiValue;
-
-  static DeliveryType fromApi(String v) => values.firstWhere((e) => e.apiValue == v);
+  static OrderOrigin fromApi(String value) => values.firstWhere((o) => o.apiValue == value);
 }
 
 enum OrderStatus {
-  pendingPayment('pending_payment'),
-  preparing('preparing'),
-  onTheWay('on_the_way'),
-  delivered('delivered'),
-  returned('returned'),
-  cancelled('cancelled');
+  pendingPayment('pending_payment', 'Por pagar'),
+  paymentReview('payment_review', 'Comprobante en revisión'),
+  paid('paid', 'Pagado'),
+  ready('ready', 'Listo para entregar'),
+  delivered('delivered', 'Entregado'),
+  cancelled('cancelled', 'Cancelado'),
+  expired('expired', 'Vencido'),
+  returned('returned', 'Devuelto');
 
-  const OrderStatus(this.apiValue);
+  const OrderStatus(this.apiValue, this.label);
   final String apiValue;
+  final String label;
 
-  static OrderStatus fromApi(String v) => values.firstWhere((e) => e.apiValue == v);
-
-  /// El vendedor solo puede cancelar mientras el admin no confirme el pago.
-  bool get isCancellable => this == OrderStatus.pendingPayment;
+  static OrderStatus fromApi(String value) => values.firstWhere((s) => s.apiValue == value);
 }
 
-enum CommissionState {
-  /// Se genera al confirmar el pago y queda en espera hasta la entrega.
+enum DeliveryType {
+  pickup('pickup', 'Recojo'),
+  delivery('delivery', 'Delivery');
+
+  const DeliveryType(this.apiValue, this.label);
+  final String apiValue;
+  final String label;
+
+  static DeliveryType fromApi(String value) => values.firstWhere((t) => t.apiValue == value);
+}
+
+enum PaymentStatus {
   pending('pending'),
-
-  /// Se aprueba cuando el pedido se entrega.
-  approved('approved'),
-
-  /// Se revierte si el pedido se devuelve o se cancela.
-  reverted('reverted');
-
-  const CommissionState(this.apiValue);
-  final String apiValue;
-
-  static CommissionState fromApi(String v) => values.firstWhere((e) => e.apiValue == v);
-}
-
-enum ProofStatus {
-  /// Pago con QR y todavía no se subió la foto.
-  missing('missing'),
-  uploaded('uploaded'),
+  submitted('submitted'),
   confirmed('confirmed'),
   rejected('rejected'),
+  reversed('reversed');
 
-  /// Pago en efectivo: no hay comprobante.
-  notRequired('not_required');
-
-  const ProofStatus(this.apiValue);
+  const PaymentStatus(this.apiValue);
   final String apiValue;
 
-  static ProofStatus fromApi(String v) => values.firstWhere((e) => e.apiValue == v);
+  static PaymentStatus fromApi(String value) =>
+      values.firstWhere((s) => s.apiValue == value);
 }
 
-class OrderCommission {
-  const OrderCommission({required this.amount, required this.state});
+/// Comisión de una venta: pendiente hasta que se cobra.
+enum CommissionStatus {
+  pending('pending'),
+  earned('earned'),
+  cancelled('cancelled');
 
-  factory OrderCommission.fromJson(Json json) => OrderCommission(
-        amount: json.money('amount'),
-        state: CommissionState.fromApi(json.str('state')),
-      );
+  const CommissionStatus(this.apiValue);
+  final String apiValue;
 
-  final Money amount;
-  final CommissionState state;
+  static CommissionStatus fromApi(String value) =>
+      values.firstWhere((s) => s.apiValue == value);
+}
+
+/// Pestañas de «Mis pedidos». `paid` incluye los listos para entregar.
+enum OrderFilter {
+  all(null, 'Todos'),
+  toPay('pending_payment', 'Por pagar'),
+  inReview('payment_review', 'En revisión'),
+  paid('paid', 'Pagados'),
+  delivered('delivered', 'Entregados');
+
+  const OrderFilter(this.apiValue, this.label);
+  final String? apiValue;
+  final String label;
 }
 
 class OrderSummary {
@@ -104,7 +103,6 @@ class OrderSummary {
     required this.total,
     required this.paymentMethod,
     required this.status,
-    required this.commission,
   });
 
   factory OrderSummary.fromJson(Json json) => OrderSummary(
@@ -116,270 +114,212 @@ class OrderSummary {
         total: json.money('total'),
         paymentMethod: PaymentMethod.fromApi(json.str('payment_method')),
         status: OrderStatus.fromApi(json.str('status')),
-        commission: OrderCommission.fromJson(json.obj('commission')),
       );
 
   final String id;
 
-  /// Número visible del pedido, sin el «#». Ej: `131`.
+  /// Ej: `N-1046`.
   final String number;
   final DateTime createdAt;
   final String customerName;
-
-  /// Resumen en una línea. Ej: `Lámpara luna LED × 1`.
   final String itemsLabel;
   final Money total;
   final PaymentMethod paymentMethod;
   final OrderStatus status;
-  final OrderCommission commission;
 }
 
 class OrderLine {
   const OrderLine({
-    required this.kind,
-    required this.itemId,
-    required this.code,
+    required this.productId,
+    required this.itemCode,
     required this.name,
     required this.quantity,
+    required this.priceType,
     required this.unitPrice,
-    required this.minPrice,
+    required this.total,
   });
 
   factory OrderLine.fromJson(Json json) => OrderLine(
-        kind: CatalogKind.fromApi(json.str('kind')),
-        itemId: json.str('item_id'),
-        code: json.str('code'),
+        productId: json.str('product_id'),
+        itemCode: json.str('item_code'),
         name: json.str('name'),
         quantity: json.integer('quantity'),
+        priceType: PriceType.fromApi(json.str('price_type')),
         unitPrice: json.money('unit_price'),
-        minPrice: json.money('min_price'),
+        total: json.money('line_total'),
       );
 
-  final CatalogKind kind;
-  final String itemId;
-  final String code;
+  final String productId;
+  final String itemCode;
   final String name;
   final int quantity;
+  final PriceType priceType;
   final Money unitPrice;
-  final Money minPrice;
-
-  Money get lineTotal => unitPrice * quantity;
+  final Money total;
 }
 
-/// Cómo se reparte la ganancia de la venta. Lo calcula el servidor.
-class CommissionBreakdown {
-  const CommissionBreakdown({
-    required this.gain,
-    required this.personal,
-    required this.fund,
-  });
-
-  factory CommissionBreakdown.fromJson(Json json) => CommissionBreakdown(
-        gain: json.money('gain'),
-        personal: json.money('personal'),
-        fund: json.money('fund'),
-      );
-
-  /// Suma de (precio vendido − mínimo) × cantidad.
-  final Money gain;
-  final Money personal;
-  final Money fund;
-}
-
-class PaymentProof {
-  const PaymentProof({
+class OrderPayment {
+  const OrderPayment({
+    required this.method,
     required this.status,
-    this.url,
-    this.uploadedAt,
-    this.rejectionReason,
+    this.reference,
+    this.proofUrl,
+    this.submittedAt,
+    this.rejectReason,
   });
 
-  factory PaymentProof.fromJson(Json json) => PaymentProof(
-        status: ProofStatus.fromApi(json.str('status')),
-        url: json.strOrNull('url'),
-        uploadedAt: json.dateOrNull('uploaded_at'),
-        rejectionReason: json.strOrNull('rejection_reason'),
+  factory OrderPayment.fromJson(Json json) => OrderPayment(
+        method: PaymentMethod.fromApi(json.str('method')),
+        status: PaymentStatus.fromApi(json.str('status')),
+        reference: json.strOrNull('reference'),
+        proofUrl: json.strOrNull('proof_url'),
+        submittedAt: json.dateOrNull('submitted_at'),
+        rejectReason: json.strOrNull('reject_reason'),
       );
 
-  final ProofStatus status;
-  final String? url;
-  final DateTime? uploadedAt;
-  final String? rejectionReason;
+  final PaymentMethod method;
+  final PaymentStatus status;
+  final String? reference;
+  final String? proofUrl;
+  final DateTime? submittedAt;
+  final String? rejectReason;
 }
 
-class OrderDelivery {
-  const OrderDelivery({required this.type, this.address, this.city});
+class TimelineStep {
+  const TimelineStep({required this.status, this.at});
 
-  factory OrderDelivery.fromJson(Json json) => OrderDelivery(
-        type: DeliveryType.fromApi(json.str('type')),
-        address: json.strOrNull('address'),
-        city: json.strOrNull('city'),
-      );
-
-  final DeliveryType type;
-  final String? address;
-  final String? city;
-}
-
-/// Hito de la línea de tiempo del pedido. `at == null` significa pendiente.
-class OrderTimelineEvent {
-  const OrderTimelineEvent({required this.key, this.at});
-
-  factory OrderTimelineEvent.fromJson(Json json) => OrderTimelineEvent(
-        key: json.str('key'),
+  factory TimelineStep.fromJson(Json json) => TimelineStep(
+        status: OrderStatus.fromApi(json.str('status')),
         at: json.dateOrNull('at'),
       );
 
-  /// `registered`, `payment_confirmed` o `delivered`.
-  final String key;
-  final DateTime? at;
+  final OrderStatus status;
 
-  bool get isDone => at != null;
+  /// `null` = todavía no pasó.
+  final DateTime? at;
 }
 
-class OrderDetail extends OrderSummary {
+class OrderCommission {
+  const OrderCommission({required this.status, this.amount});
+
+  factory OrderCommission.fromJson(Json json) => OrderCommission(
+        status: CommissionStatus.fromApi(json.str('status')),
+        amount: json.moneyOrNull('amount'),
+      );
+
+  final CommissionStatus status;
+
+  /// `null` mientras el % del producto esté por definir.
+  final Money? amount;
+}
+
+class OrderDetail {
   const OrderDetail({
-    required super.id,
-    required super.number,
-    required super.createdAt,
-    required super.customerName,
-    required super.itemsLabel,
-    required super.total,
-    required super.paymentMethod,
-    required super.status,
-    required super.commission,
-    required this.customerWhatsapp,
-    required this.delivery,
+    required this.summary,
+    required this.origin,
+    required this.deliveryType,
     required this.lines,
-    required this.breakdown,
-    required this.paymentProof,
     required this.timeline,
+    required this.canCancel,
+    required this.canUploadProof,
+    this.customerPhone,
+    this.shippingAddress,
+    this.payment,
+    this.commission,
   });
 
   factory OrderDetail.fromJson(Json json) {
-    final summary = OrderSummary.fromJson(json);
+    final delivery = json.obj('delivery');
+    final payment = json.objOrNull('payment');
+    final commission = json.objOrNull('commission');
     return OrderDetail(
-      id: summary.id,
-      number: summary.number,
-      createdAt: summary.createdAt,
-      customerName: summary.customerName,
-      itemsLabel: summary.itemsLabel,
-      total: summary.total,
-      paymentMethod: summary.paymentMethod,
-      status: summary.status,
-      commission: summary.commission,
-      customerWhatsapp: json.strOrNull('customer_whatsapp'),
-      delivery: OrderDelivery.fromJson(json.obj('delivery')),
+      summary: OrderSummary.fromJson(json),
+      origin: OrderOrigin.fromApi(json.str('origin')),
+      customerPhone: json.strOrNull('customer_phone'),
+      deliveryType: DeliveryType.fromApi(delivery.str('type')),
+      shippingAddress: delivery.strOrNull('address'),
       lines: json.list('lines').map(OrderLine.fromJson).toList(),
-      breakdown: CommissionBreakdown.fromJson(json.obj('breakdown')),
-      paymentProof: PaymentProof.fromJson(json.obj('payment_proof')),
-      timeline: json.list('timeline').map(OrderTimelineEvent.fromJson).toList(),
+      payment: payment == null ? null : OrderPayment.fromJson(payment),
+      timeline: json.list('timeline').map(TimelineStep.fromJson).toList(),
+      commission: commission == null ? null : OrderCommission.fromJson(commission),
+      canCancel: json.flag('can_cancel'),
+      canUploadProof: json.flag('can_upload_proof'),
     );
   }
 
-  final String? customerWhatsapp;
-  final OrderDelivery delivery;
+  final OrderSummary summary;
+  final OrderOrigin origin;
+  final String? customerPhone;
+  final DeliveryType deliveryType;
+  final String? shippingAddress;
   final List<OrderLine> lines;
-  final CommissionBreakdown breakdown;
-  final PaymentProof paymentProof;
-  final List<OrderTimelineEvent> timeline;
+  final OrderPayment? payment;
+  final List<TimelineStep> timeline;
+
+  /// Solo quienes venden ven su comisión.
+  final OrderCommission? commission;
+  final bool canCancel;
+  final bool canUploadProof;
 }
 
-// ---------------------------------------------------------------------------
-// Registrar una venta
-// ---------------------------------------------------------------------------
-
-class SaleLineInput {
-  const SaleLineInput({
-    required this.kind,
-    required this.itemId,
-    required this.quantity,
-    required this.unitPrice,
-  });
-
-  final CatalogKind kind;
-  final String itemId;
-  final int quantity;
-
-  /// Precio al que vendió el vendedor. Debe ser ≥ al mínimo del ítem.
-  final Money unitPrice;
-
-  Json toJson() => {
-        'kind': kind.apiValue,
-        'item_id': itemId,
-        'quantity': quantity,
-        'unit_price': unitPrice.toApi(),
-      };
-}
-
-class CustomerInput {
-  const CustomerInput({required this.name, required this.whatsapp});
-
-  final String name;
-  final String whatsapp;
-
-  Json toJson() => {'name': name, 'whatsapp': whatsapp};
-}
-
-class DeliveryInput {
-  const DeliveryInput({required this.type, this.address, this.city});
-
-  final DeliveryType type;
-
-  /// Obligatoria si [type] es `delivery`.
-  final String? address;
-
-  /// Obligatoria si [type] es `otherCity`.
-  final String? city;
-
-  Json toJson() => {'type': type.apiValue, 'address': address, 'city': city};
-}
-
-class CreateOrderInput {
-  const CreateOrderInput({
-    required this.clientRequestId,
-    required this.lines,
-    required this.customer,
+/// Una venta nueva. La app manda productos y cantidades; el servidor calcula
+/// los precios y compara con [expectedTotal], que es lo que se le mostró a la
+/// persona. Si no coincide, responde `price_changed` y no registra nada.
+class NewSale {
+  const NewSale({
+    required this.clientUuid,
+    required this.origin,
+    required this.customerName,
+    required this.deliveryType,
     required this.paymentMethod,
-    required this.delivery,
+    required this.lines,
+    required this.expectedTotal,
+    this.customerPhone,
+    this.shippingAddress,
   });
 
-  /// UUID generado en el celular al abrir la pantalla de venta. Viaja como
-  /// `Idempotency-Key`: si la red falla y el vendedor reintenta, el servidor
-  /// devuelve el mismo pedido en lugar de duplicarlo.
-  final String clientRequestId;
-  final List<SaleLineInput> lines;
-  final CustomerInput customer;
+  /// Se genera al abrir el formulario y se reutiliza en los reintentos, así un
+  /// corte de internet no registra la venta dos veces.
+  final String clientUuid;
+  final OrderOrigin origin;
+  final String customerName;
+  final String? customerPhone;
+  final DeliveryType deliveryType;
+  final String? shippingAddress;
   final PaymentMethod paymentMethod;
-  final DeliveryInput delivery;
+  final List<({String productId, int quantity})> lines;
+  final Money expectedTotal;
 
   Json toJson() => {
-        'lines': lines.map((l) => l.toJson()).toList(),
-        'customer': customer.toJson(),
+        'origin': origin.apiValue,
+        'customer': {'name': customerName, 'phone': customerPhone},
+        'delivery': {'type': deliveryType.apiValue, 'address': shippingAddress},
         'payment_method': paymentMethod.apiValue,
-        'delivery': delivery.toJson(),
+        'lines': [
+          for (final line in lines)
+            {'product_id': line.productId, 'quantity': line.quantity},
+        ],
+        'expected_total': expectedTotal.toApi(),
       };
 }
 
 abstract interface class OrdersRepository {
-  /// Mis pedidos, del más nuevo al más antiguo. [status] filtra una pestaña.
-  Future<PagedResult<OrderSummary>> list({OrderStatus? status, int page = 1});
+  /// Mis pedidos, del más nuevo al más antiguo.
+  Future<PagedResult<OrderSummary>> list({OrderFilter filter = OrderFilter.all, int page = 1});
 
-  Future<OrderDetail> get(String id);
+  Future<OrderDetail> detail(String id);
 
-  /// Registra la venta. Puede lanzar:
-  /// - [ValidationException] con `code == 'price_below_minimum'`
-  /// - [ConflictException] con `code == 'insufficient_stock'`
-  Future<OrderDetail> create(CreateOrderInput input);
+  /// Lanza [ConflictException] con `insufficient_stock`, `price_changed` o
+  /// `product_unavailable`.
+  Future<OrderDetail> create(NewSale sale);
 
-  /// Solo mientras el pedido esté «por confirmar». Si no, [ConflictException]
-  /// con `code == 'not_cancellable'`.
-  Future<OrderDetail> cancel(String id);
+  Future<OrderDetail> cancel(String id, {String? reason});
 
-  /// Sube la foto del comprobante del QR.
-  Future<OrderDetail> uploadPaymentProof(
-    String id,
-    UploadFile file, {
-    void Function(int sent, int total)? onProgress,
+  /// Sube la foto del comprobante; el pedido pasa a «En revisión».
+  Future<OrderDetail> uploadProof(
+    String id, {
+    required UploadFile file,
+    required String clientUuid,
+    String? reference,
   });
 }

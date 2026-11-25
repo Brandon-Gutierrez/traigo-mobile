@@ -4,14 +4,24 @@ import '../features/auth/data/auth_api_repository.dart';
 import '../features/auth/domain/auth.dart';
 import '../features/catalog/data/catalog_api_repository.dart';
 import '../features/catalog/domain/catalog.dart';
+import '../features/control/data/admin_api_repository.dart';
+import '../features/control/data/control_api_repository.dart';
+import '../features/control/data/payouts_api_repository.dart';
+import '../features/control/data/review_api_repository.dart';
+import '../features/control/domain/admin.dart';
+import '../features/control/domain/control_summary.dart';
+import '../features/control/domain/payouts.dart';
+import '../features/control/domain/review.dart';
 import '../features/home/data/home_api_repository.dart';
 import '../features/home/domain/home.dart';
+import '../features/management/data/management_api_repository.dart';
+import '../features/management/domain/authorizations.dart';
 import '../features/orders/data/orders_api_repository.dart';
 import '../features/orders/domain/orders.dart';
-import '../features/stock/data/stock_api_repository.dart';
-import '../features/stock/domain/stock.dart';
-import '../features/waste/data/waste_api_repository.dart';
-import '../features/waste/domain/waste.dart';
+import '../features/team/data/team_api_repository.dart';
+import '../features/team/domain/team_week.dart';
+import '../features/warehouse/data/warehouse_api_repository.dart';
+import '../features/warehouse/domain/warehouse.dart';
 import 'config/app_config.dart';
 import 'demo/demo_backend.dart';
 import 'demo/demo_repositories.dart';
@@ -22,7 +32,7 @@ import 'storage/token_storage.dart';
 // ---------------------------------------------------------------------------
 // Este archivo es el ÚNICO lugar donde se decide si la app usa datos de
 // prueba o el backend real. El resto de la app solo conoce las interfaces
-// (AuthRepository, CatalogRepository, ...).
+// (AuthRepository, HomeRepository, ...).
 // ---------------------------------------------------------------------------
 
 final appConfigProvider = Provider<AppConfig>((ref) => AppConfig.fromEnvironment());
@@ -52,8 +62,12 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   );
 });
 
+/// Reloj de la app (cuentas regresivas). Se reemplaza en las pruebas.
+final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
 /// Servidor de prueba en memoria. Solo se usa en modo demo.
-final demoBackendProvider = Provider<DemoBackend>((ref) => DemoBackend());
+final demoBackendProvider =
+    Provider<DemoBackend>((ref) => DemoBackend(clock: ref.watch(clockProvider)));
 
 Duration _latency(Ref ref) => ref.watch(appConfigProvider).demoLatency;
 bool _isDemo(Ref ref) => ref.watch(appConfigProvider).isDemo;
@@ -66,20 +80,6 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthApiRepository(ref.watch(apiClientProvider), tokens);
 });
 
-final catalogRepositoryProvider = Provider<CatalogRepository>((ref) {
-  if (_isDemo(ref)) {
-    return DemoCatalogRepository(ref.watch(demoBackendProvider), _latency(ref));
-  }
-  return CatalogApiRepository(ref.watch(apiClientProvider));
-});
-
-final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
-  if (_isDemo(ref)) {
-    return DemoOrdersRepository(ref.watch(demoBackendProvider), _latency(ref));
-  }
-  return OrdersApiRepository(ref.watch(apiClientProvider));
-});
-
 final homeRepositoryProvider = Provider<HomeRepository>((ref) {
   if (_isDemo(ref)) {
     return DemoHomeRepository(ref.watch(demoBackendProvider), _latency(ref));
@@ -87,16 +87,41 @@ final homeRepositoryProvider = Provider<HomeRepository>((ref) {
   return HomeApiRepository(ref.watch(apiClientProvider));
 });
 
-final stockRepositoryProvider = Provider<StockRepository>((ref) {
+final controlRepositoryProvider = Provider<ControlRepository>((ref) {
   if (_isDemo(ref)) {
-    return DemoStockRepository(ref.watch(demoBackendProvider), _latency(ref));
+    return DemoControlRepository(ref.watch(demoBackendProvider), _latency(ref));
   }
-  return StockApiRepository(ref.watch(apiClientProvider));
+  return ControlApiRepository(ref.watch(apiClientProvider));
 });
 
-final wasteRepositoryProvider = Provider<WasteRepository>((ref) {
-  if (_isDemo(ref)) {
-    return DemoWasteRepository(ref.watch(demoBackendProvider), _latency(ref));
-  }
-  return WasteApiRepository(ref.watch(apiClientProvider));
-});
+// ───── Listos para la API; sus datos de demo se agregan junto con la pantalla
+// ───── de cada fase.
+
+/// Repositorio que por ahora solo funciona contra el backend.
+Provider<T> _apiOnly<T>(int phase, T Function(ApiClient api) create) =>
+    Provider<T>((ref) {
+      if (_isDemo(ref)) {
+        throw UnsupportedError('Los datos de demo de esta parte llegan en la fase $phase.');
+      }
+      return create(ref.watch(apiClientProvider));
+    });
+
+final catalogRepositoryProvider =
+    _apiOnly<CatalogRepository>(2, CatalogApiRepository.new);
+
+final ordersRepositoryProvider = _apiOnly<OrdersRepository>(2, OrdersApiRepository.new);
+
+final teamRepositoryProvider = _apiOnly<TeamRepository>(3, TeamApiRepository.new);
+
+final warehouseRepositoryProvider =
+    _apiOnly<WarehouseRepository>(4, WarehouseApiRepository.new);
+
+final reviewRepositoryProvider = _apiOnly<ReviewRepository>(5, ReviewApiRepository.new);
+
+final payoutsRepositoryProvider =
+    _apiOnly<PayoutsRepository>(5, PayoutsApiRepository.new);
+
+final adminRepositoryProvider = _apiOnly<AdminRepository>(5, AdminApiRepository.new);
+
+final managementRepositoryProvider =
+    _apiOnly<ManagementRepository>(5, ManagementApiRepository.new);

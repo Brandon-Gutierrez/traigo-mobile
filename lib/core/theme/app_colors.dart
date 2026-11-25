@@ -1,37 +1,25 @@
 import 'dart:ui';
 
-/// Colores del diseño «Feria y live» para la app de vendedores.
+/// Colores del diseño «Ficha técnica» (opción C).
 ///
-/// Salen del logo (azul y naranja). Regla del diseño: el naranja solo se usa
-/// como fondo de acción, nunca como color de texto (no tiene contraste sobre
-/// el papel); para dinero y estados se usan el verde y el rojo oscuros.
+/// La paleta se midió en los archivos oficiales de la marca. Reglas de uso:
+/// - [violet] actúa y marca el dinero. Sirve como texto sobre blanco (7,1:1).
+/// - [cyan] es solo relleno: el bloque del día y la pestaña activa. Sobre blanco
+///   no se lee como texto (1,5:1); con tinta encima sí (11,9:1).
+/// - [alert] es la única alerta, para lo que bloquea o no cumple.
+/// - El degradado vive solo dentro del logo.
 abstract final class AppColors {
-  static const paper = Color(0xFFF5EFE0);
-  static const card = Color(0xFFFFFCF3);
-  static const kraft = Color(0xFFD8B684);
-  static const ink = Color(0xFF0B1F5E);
-  static const text = Color(0xFF101A3D);
-  static const muted = Color(0xFF5B6385);
-  static const line = Color(0xFFDCD3BC);
+  static const bg = Color(0xFFFFFFFF);
+  static const alt = Color(0xFFF3F1F8);
+  static const off = Color(0xFFE6E2F0);
+  static const ink = Color(0xFF150A3B);
+  static const muted = Color(0xFF5B5478);
+  static const rule = Color(0xFFDCD7EA);
+  static const dot = Color(0xFFB3AACD);
 
-  static const orange = Color(0xFFFF7A18);
-  static const amber = Color(0xFFFFC22E);
-  static const blue = Color(0xFF1553D4);
-
-  /// Dinero ganado y estados correctos.
-  static const green = Color(0xFF14704A);
-  static const greenSoft = Color(0xFFDDF4EA);
-
-  /// Errores, precios bajo el mínimo y stock crítico.
-  static const red = Color(0xFFC42B20);
-  static const redSoft = Color(0xFFFBE0DC);
-
-  /// Pendiente o por confirmar.
-  static const warn = Color(0xFF8A4A00);
-  static const warnSoft = Color(0xFFFFF1CC);
-
-  static const blueSoft = Color(0xFFDCE8FF);
-
-  /// Fondo apagado de botones deshabilitados.
-  static const disabled = Color(0xFFE7DFC9);
+  static const violet = Color(0xFF5F11FA);
+  static const cyan = Color(0xFF0CE8DC);
+  static const sky = Color(0xFF0CB5F8);
+  static const lilac = Color(0xFFA83FFE);
+  static const alert = Color(0xFFD4243B);
 }

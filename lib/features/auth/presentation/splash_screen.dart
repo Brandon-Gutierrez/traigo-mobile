@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/brand_logo.dart';
 import '../../../core/ui/error_panel.dart';
-import '../../../core/ui/traigo_logo.dart';
 import '../application/session_controller.dart';
 
 /// Pantalla de arranque: recupera la sesión guardada. Si no hay internet
-/// ofrece reintentar en lugar de sacar al vendedor de su cuenta.
+/// ofrece reintentar en lugar de sacar a la persona de su cuenta.
 class SplashScreen extends ConsumerWidget {
   const SplashScreen({super.key});
 
@@ -23,10 +22,10 @@ class SplashScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const TraigoLogo(size: 76),
+              const BrandLogo(BrandAsset.wordmark, width: 200),
               const SizedBox(height: 28),
               if (error == null)
-                const CircularProgressIndicator(color: AppColors.orange)
+                const CircularProgressIndicator()
               else
                 ErrorPanel(
                   message: errorMessage(error),

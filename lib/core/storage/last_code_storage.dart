@@ -1,6 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Último código de vendedor con el que se ingresó, para precargarlo en el
+/// Último código de integrante con el que se ingresó, para precargarlo en el
 /// formulario. El código no es secreto (el PIN sí, y ese nunca se guarda).
 abstract class LastCodeStorage {
   Future<String?> read();
@@ -10,7 +10,7 @@ abstract class LastCodeStorage {
 class SecureLastCodeStorage implements LastCodeStorage {
   const SecureLastCodeStorage([this._storage = const FlutterSecureStorage()]);
 
-  static const _key = 'last_seller_code';
+  static const _key = 'last_member_code';
   final FlutterSecureStorage _storage;
 
   @override

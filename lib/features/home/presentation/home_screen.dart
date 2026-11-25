@@ -1,463 +1,399 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../app/app_routes.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_text.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/ui/cut_button.dart';
 import '../../../core/ui/error_panel.dart';
-import '../../../core/ui/hard_button.dart';
-import '../../../core/ui/hard_card.dart';
+import '../../../core/ui/ficha.dart';
+import '../../../core/ui/refreshable_page.dart';
 import '../../../core/ui/rise_in.dart';
 import '../../../core/ui/skeleton_block.dart';
 import '../../auth/application/session_controller.dart';
-import '../../orders/domain/orders.dart';
+import '../../auth/domain/auth.dart';
+import '../../auth/presentation/account_header.dart';
+import '../../team/domain/bonus.dart';
+import '../../team/domain/kpi.dart';
+import '../../team/presentation/week_block.dart';
 import '../application/home_providers.dart';
 import '../domain/home.dart';
 
-/// Inicio: cuánto ganó hoy, comisión del mes con la parte del fondo, y las
-/// últimas ventas. Desliza hacia abajo para actualizar.
+/// Inicio del equipo: el bono de la semana, la acción principal del rol, mi
+/// KPI y lo propio de cada puesto.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider).value;
-    final summary = ref.watch(homeSummaryProvider);
+    final member = ref.watch(sessionControllerProvider).value?.member;
+    final home = ref.watch(teamHomeProvider);
+    if (member == null) return const SizedBox.shrink();
 
-    Future<void> refresh() async {
-      ref.invalidate(homeSummaryProvider);
-      try {
-        await ref.read(homeSummaryProvider.future);
-      } catch (_) {
-        // El error ya se muestra en pantalla con su botón de reintentar.
-      }
-    }
-
-    return SafeArea(
-      bottom: false,
-      child: RefreshIndicator(
-        color: AppColors.ink,
-        backgroundColor: AppColors.card,
-        onRefresh: refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
-          children: [
-            _Header(
-              name: session?.seller.firstName ?? '',
-              code: session?.seller.code ?? '',
-            ),
-            const SizedBox(height: 14),
-            ...summary.when(
-              data: (home) => [
-                RiseIn(child: _TodayCard(today: home.today)),
-                const SizedBox(height: 14),
-                const _Actions(),
-                const SizedBox(height: 14),
-                RiseIn(
-                  delay: const Duration(milliseconds: 120),
-                  child: _MonthCard(home: home),
-                ),
-                const SizedBox(height: 14),
-                RiseIn(
-                  delay: const Duration(milliseconds: 180),
-                  child: _RecentSales(orders: home.recentOrders),
-                ),
-              ],
-              loading: () => const [
-                SkeletonBlock(height: 122),
-                SizedBox(height: 14),
-                _Actions(),
-                SizedBox(height: 14),
-                SkeletonBlock(height: 196),
-                SizedBox(height: 14),
-                SkeletonBlock(height: 120),
-              ],
-              error: (error, _) => [
-                ErrorPanel(
-                  message: errorMessage(error),
-                  onRetry: () => ref.invalidate(homeSummaryProvider),
-                ),
-                const SizedBox(height: 14),
-                const _Actions(),
-              ],
+    return RefreshablePage(
+      onRefresh: () {
+        ref.invalidate(teamHomeProvider);
+        return ref.read(teamHomeProvider.future);
+      },
+      children: [
+        AccountHeader(
+          greeting: 'Hola, ${member.firstName}',
+          detail: '${member.title} · ${member.code}',
+        ),
+        const SizedBox(height: 12),
+        ...home.when(
+          data: (data) => _content(context, member, data),
+          loading: () => const [
+            SkeletonBlock(height: 126),
+            SizedBox(height: 12),
+            SkeletonBlock(height: 58),
+            SizedBox(height: 16),
+            SkeletonBlock(height: 120),
+          ],
+          error: (error, _) => [
+            ErrorPanel(
+              message: errorMessage(error),
+              onRetry: () => ref.invalidate(teamHomeProvider),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
-}
 
-class _Header extends ConsumerWidget {
-  const _Header({required this.name, required this.code});
+  List<Widget> _content(BuildContext context, Member member, TeamHome home) {
+    final (action, route) = switch (member.role) {
+      MemberRole.seller || MemberRole.wholesale => ('+ Registrar venta', AppRoutes.sell),
+      MemberRole.warehouse => ('Cierre de caja', AppRoutes.cash),
+      _ => ('Subir evidencia', AppRoutes.evidence),
+    };
+    final commission = home.monthCommission;
+    final cash = home.cashToday;
+    final deliverables = home.kpi.deliverables;
 
-  final String name;
-  final String code;
-
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('¿Cerrar sesión?'),
-        content: const Text('Tendrás que ingresar otra vez con tu código y tu PIN.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancelar', style: AppText.body(15, FontWeight.w700, color: AppColors.blue)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Cerrar sesión', style: AppText.body(15, FontWeight.w800, color: AppColors.red)),
-          ),
+    return [
+      RiseIn(
+        child: WeekBlock(
+          title: 'Bono del equipo · ${home.week.label}',
+          percent: home.percent,
+          collected: home.collected,
+          target: home.week.target,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        _nextStepNote(home),
+        style: AppText.body(13.5, FontWeight.w400, color: AppColors.muted, height: 1.3),
+      ),
+      const SizedBox(height: 10),
+      CutButton(label: action, onPressed: () => context.go(route)),
+      const SizedBox(height: 14),
+      RiseIn(
+        delay: const Duration(milliseconds: 90),
+        child: _MyWeek(home: home),
+      ),
+      if (member.role.canSell) ...[
+        if (commission != null) ...[
+          const SizedBox(height: 14),
+          _MonthSection(commission),
         ],
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(sessionControllerProvider.notifier).logout();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Hola, $name', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 3),
-              Text(
-                'Equipo de ventas · código $code',
-                style: AppText.body(14, FontWeight.w500, color: AppColors.muted),
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          tooltip: 'Cerrar sesión',
-          onPressed: () => _confirmLogout(context, ref),
-          style: IconButton.styleFrom(
-            minimumSize: const Size(48, 48),
-            backgroundColor: AppColors.card,
-            foregroundColor: AppColors.ink,
-            shape: const RoundedRectangleBorder(
-              side: BorderSide(color: AppColors.ink, width: 2),
-            ),
-          ),
-          icon: const Icon(Icons.logout, size: 22),
-        ),
+        const SizedBox(height: 14),
+        _TodaySales(home.todaySales),
       ],
-    );
-  }
-}
-
-class _TodayCard extends StatelessWidget {
-  const _TodayCard({required this.today});
-
-  final TodaySummary today;
-
-  @override
-  Widget build(BuildContext context) {
-    final sales = today.salesCount == 1 ? '1 venta' : '${today.salesCount} ventas';
-    return SizedBox(
-      width: double.infinity,
-      child: HardCard(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('GANASTE HOY', style: AppText.label()),
-            const SizedBox(height: 2),
-            Text(
-              // Las comisiones siempre llevan centavos: «Bs 90,00», no «Bs 90».
-              today.commission.formatFixed(),
-              style: AppText.money(46, FontWeight.w800, color: AppColors.ink, height: 1.05),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '$sales · ${today.soldTotal.format()} vendidos',
-              style: AppText.body(15, FontWeight.w500, color: AppColors.muted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Registrar venta (acción principal) y Merma (secundaria).
-class _Actions extends StatelessWidget {
-  const _Actions();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: HardButton(
-            label: '+ Registrar venta',
-            onPressed: () => context.go(AppRoutes.sell),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: HardButton(
-            label: 'Merma',
-            primary: false,
-            onPressed: () => context.go(AppRoutes.waste),
-          ),
-        ),
+      if (cash != null) ...[
+        const SizedBox(height: 14),
+        _CashSection(cash),
       ],
-    );
+      if (deliverables != null) ...[
+        const SizedBox(height: 14),
+        _DeliverablesSection(deliverables),
+      ],
+      if (member.role == MemberRole.content || member.role == MemberRole.systems) ...[
+        const SizedBox(height: 14),
+        _PendingEvidence(home.kpi.awaitingEvidence),
+      ],
+    ];
+  }
+
+  /// Cuánto falta para el siguiente escalón del premio.
+  static String _nextStepNote(TeamHome home) {
+    final level = home.level;
+    final next = BonusRules.nextLevel(level);
+    if (next == null) return 'El equipo ya llega al premio superior (115 %).';
+
+    final missing =
+        (BonusRules.threshold(home.week.target, next) - home.collected).formatInline();
+    return switch (next) {
+      BonusLevel.partial => 'Faltan $missing para el primer premio (90 %).',
+      BonusLevel.complete =>
+        'El equipo ya llega al premio parcial. Faltan $missing para el completo (100 %).',
+      _ => 'El equipo ya llega al premio completo. Faltan $missing para el superior (115 %).',
+    };
   }
 }
 
-class _MonthCard extends StatelessWidget {
-  const _MonthCard({required this.home});
+/// Mi KPI de la semana y lo que me toca del bono.
+class _MyWeek extends StatelessWidget {
+  const _MyWeek({required this.home});
 
-  final HomeSummary home;
+  final TeamHome home;
 
   @override
   Widget build(BuildContext context) {
-    final fund = home.fund;
-    final month = home.month;
-    final prize = fund.prizeLabel;
+    final kpi = home.kpi;
+    // Antes del 100 % se muestra la meta; después, el escalón ya alcanzado.
+    final reached = home.percent >= 100;
+    final level = reached ? home.level : BonusLevel.complete;
+    final shareLabel = reached
+        ? 'Tu parte con el premio ${level.label.toLowerCase()}'
+        : 'Tu parte si el equipo llega al 100 %';
 
-    final fundText = fund.remaining.isZero
-        ? 'Fondo del equipo: ${fund.current.format()} de ${fund.goal.format(symbol: false)}. '
-            '¡El equipo alcanzó el hito!'
-        : 'Fondo del equipo: ${fund.current.format()} de ${fund.goal.format(symbol: false)}. '
-            'Faltan ${fund.remaining.format()} para el hito '
-            '(${prize == null ? 'premio por definir' : 'premio: $prize'}).';
-
-    return SizedBox(
-      width: double.infinity,
-      child: HardCard(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ESTE MES', style: AppText.label()),
-            const SizedBox(height: 4),
-            _MoneyRow(label: 'Mi comisión personal', value: month.personalCommission.formatFixed()),
-            _MoneyRow(label: 'Mi parte del fondo del equipo', value: month.fundShare.formatFixed()),
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding: const EdgeInsets.only(top: 4),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.ink, width: 2)),
-              ),
-              child: _MoneyRow(
-                label: 'Total estimado',
-                value: month.estimatedTotal.formatFixed(),
-                strong: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              // Espacio fijo tras «Bs» para que un monto no se parta entre líneas.
-              fundText.replaceAll('Bs ', 'Bs '),
-              style: AppText.body(13, FontWeight.w500, color: AppColors.muted, height: 1.3),
-            ),
-            const SizedBox(height: 6),
-            _FundBar(progress: fund.progress),
-            const SizedBox(height: 8),
-            Text(
-              'Pago de comisiones: ${home.payoutNote ?? 'por definir'}.',
-              style: AppText.body(12, FontWeight.w500, color: AppColors.muted),
-            ),
-          ],
+    final closedReason = kpi.closedReason;
+    final (kind, text) = switch (kpi.compliance) {
+      Compliance.passes => (MarkKind.ok, 'Cumples tu mínimo'),
+      // Cerrada por Jime ya no es «todavía»: quedó así.
+      Compliance.fails when closedReason != null => (
+          MarkKind.bad,
+          'Jime cerró tu semana: no cumple',
         ),
-      ),
-    );
-  }
-}
+      Compliance.fails => (MarkKind.bad, 'Todavía no llegas a tu mínimo'),
+      Compliance.pending => (MarkKind.pending, _pendingReason(kpi)),
+    };
 
-class _MoneyRow extends StatelessWidget {
-  const _MoneyRow({required this.label, required this.value, this.strong = false});
-
-  final String label;
-  final String value;
-  final bool strong;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: AppText.body(strong ? 17 : 15, strong ? FontWeight.w800 : FontWeight.w500),
-            ),
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          'Tu semana',
+          trailing: TextLink('Ver mi semana', onTap: () => context.go(AppRoutes.week)),
+        ),
+        LeaderRow('Tu KPI', '${kpi.scorePercent} %'),
+        LeaderRow(
+          'Mínimo para cobrar tu parte',
+          '${kpi.minimumPercent} %',
+          labelStyle: AppText.body(15, FontWeight.w400, color: AppColors.muted),
+        ),
+        LeaderRow(shareLabel, home.shareAt(level).format()),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: StatusMark(kind, text)),
+        if (closedReason != null) ...[
+          const SizedBox(height: 2),
           Text(
-            value,
-            style: AppText.money(
-              strong ? 17 : 15,
-              FontWeight.w800,
-              color: strong ? AppColors.green : AppColors.text,
-            ),
+            'Motivo: $closedReason',
+            style: AppText.body(12.5, FontWeight.w400, color: AppColors.muted),
           ),
         ],
-      ),
+      ],
     );
+  }
+
+  static String _pendingReason(MyKpi kpi) {
+    final deliverables = kpi.deliverables;
+    if (deliverables != null && !deliverables.complete) {
+      return 'Pendiente: faltan entregas por validar';
+    }
+    return 'Pendiente: faltan valores por cargar';
   }
 }
 
-/// Barra de avance del fondo hacia el hito.
-class _FundBar extends StatelessWidget {
-  const _FundBar({required this.progress});
+class _MonthSection extends StatelessWidget {
+  const _MonthSection(this.commission);
 
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return Semantics(
-      label: 'Avance del fondo: ${(progress * 100).round()} por ciento',
-      child: ExcludeSemantics(
-        child: Container(
-          height: 14,
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            border: Border.all(color: AppColors.ink, width: 2),
-          ),
-          alignment: Alignment.centerLeft,
-          child: LayoutBuilder(
-            builder: (context, box) => TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: progress),
-              duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 900),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, _) => Container(
-                width: box.maxWidth * value,
-                decoration: BoxDecoration(
-                  color: AppColors.orange,
-                  border: value > 0 && value < 1
-                      ? const Border(right: BorderSide(color: AppColors.ink, width: 2))
-                      : null,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RecentSales extends StatelessWidget {
-  const _RecentSales({required this.orders});
-
-  final List<OrderSummary> orders;
+  final MonthCommission commission;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text('Ventas de hoy', style: Theme.of(context).textTheme.titleMedium),
-            ),
-            InkWell(
-              onTap: () => context.go(AppRoutes.orders),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                child: Text(
-                  'Ver todas',
-                  style: AppText.body(
-                    14,
-                    FontWeight.w700,
-                    color: AppColors.blue,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        const SectionHeader('Este mes'),
+        LeaderRow(
+          'Comisión del mes',
+          commission.amount.formatFixed(),
+          labelStyle: AppText.body(17, FontWeight.w700),
+          valueStyle: AppText.mono(16, weight: FontWeight.w700, color: AppColors.violet),
         ),
-        if (orders.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Hoy todavía no registras ventas. Toca «Registrar venta» para empezar.',
-              style: AppText.body(15, FontWeight.w500, color: AppColors.muted, height: 1.35),
-            ),
+        const SizedBox(height: 2),
+        Text(
+          'Se paga una vez al mes. Fecha de pago: ${commission.payNote ?? 'por definir'}.',
+          style: AppText.body(12.5, FontWeight.w400, color: AppColors.muted),
+        ),
+      ],
+    );
+  }
+}
+
+class _TodaySales extends StatelessWidget {
+  const _TodaySales(this.sales);
+
+  final List<TodaySale> sales;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Ventas de hoy'),
+        if (sales.isEmpty)
+          Text(
+            'Hoy todavía no registras ventas. Toca «Registrar venta» para empezar.',
+            style: AppText.body(15, FontWeight.w400, color: AppColors.muted, height: 1.35),
           )
         else
-          for (final order in orders) _SaleRow(order: order),
+          for (final (index, sale) in sales.indexed) _SaleRow(sale, divided: index > 0),
       ],
     );
   }
 }
 
 class _SaleRow extends StatelessWidget {
-  const _SaleRow({required this.order});
+  const _SaleRow(this.sale, {required this.divided});
 
-  final OrderSummary order;
+  final TodaySale sale;
+  final bool divided;
 
-  static final _time = DateFormat('HH:mm');
+  static String _time(DateTime at) {
+    final local = at.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final commission = order.commission;
-    final (color, decoration) = switch (commission.state) {
-      CommissionState.approved => (AppColors.green, TextDecoration.none),
-      CommissionState.pending => (AppColors.warn, TextDecoration.none),
-      CommissionState.reverted => (AppColors.red, TextDecoration.lineThrough),
-    };
-    final payment = order.paymentMethod == PaymentMethod.qr ? 'QR' : 'Efectivo';
-
-    return InkWell(
-      onTap: () => context.go(AppRoutes.order(order.id)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        margin: const EdgeInsets.only(top: 4),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.line, width: 2)),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 46,
-              child: Text(
-                _time.format(order.createdAt.toLocal()),
-                style: AppText.body(13, FontWeight.w700, color: AppColors.muted),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: divided
+          ? const BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.rule, width: 2)),
+            )
+          : null,
+      child: Row(
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44),
+            child: Text(_time(sale.createdAt), style: AppText.mono(12, color: AppColors.muted)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(sale.itemsLabel, style: AppText.body(15, FontWeight.w600, height: 1.2)),
+                const SizedBox(height: 1),
+                Text(
+                  '${sale.customerName} · ${sale.paymentMethod.label}',
+                  style: AppText.body(13, FontWeight.w400, color: AppColors.muted),
+                ),
+              ],
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(sale.total.format(), style: AppText.display(16)),
+              // El % de comisión por producto todavía no está definido.
+              Text('[% por definir]', style: AppText.mono(11, color: AppColors.muted)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CashSection extends StatelessWidget {
+  const _CashSection(this.cash);
+
+  final CashToday cash;
+
+  @override
+  Widget build(BuildContext context) {
+    final kind = switch (cash.status) {
+      CashStatus.validated => MarkKind.ok,
+      CashStatus.observed => MarkKind.bad,
+      CashStatus.open || CashStatus.sent => MarkKind.pending,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Caja de hoy'),
+        LeaderRow(
+          'Cobrado hoy',
+          cash.collected.format(),
+          labelStyle: AppText.body(17, FontWeight.w700),
+          valueStyle: AppText.mono(16, weight: FontWeight.w700, color: AppColors.violet),
+        ),
+        LeaderRow('Pedidos pagados', '${cash.paidOrders}'),
+        LeaderRow('Pedidos por cobrar', '${cash.pendingOrders}'),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: StatusMark(kind, cash.status.label)),
+      ],
+    );
+  }
+}
+
+class _DeliverablesSection extends StatelessWidget {
+  const _DeliverablesSection(this.deliverables);
+
+  final DeliverableProgress deliverables;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Entregas técnicas'),
+        LeaderRow('Validadas', '${deliverables.approved} de ${deliverables.total}'),
+        const SizedBox(height: 2),
+        Text(
+          deliverables.complete
+              ? 'Tus entregas están completas.'
+              : 'Hasta que estén todas validadas, tu bono queda pendiente.',
+          style: AppText.body(12.5, FontWeight.w400, color: AppColors.muted),
+        ),
+      ],
+    );
+  }
+}
+
+/// Indicadores cuya evidencia falta, está en revisión o fue observada.
+class _PendingEvidence extends StatelessWidget {
+  const _PendingEvidence(this.indicators);
+
+  final List<KpiIndicator> indicators;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Evidencia pendiente'),
+        if (indicators.isEmpty)
+          Text(
+            'Toda tu evidencia está validada.',
+            style: AppText.body(15, FontWeight.w400, color: AppColors.muted),
+          )
+        else
+          for (final indicator in indicators)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
                 children: [
-                  Text(order.itemsLabel, style: AppText.body(15, FontWeight.w700, height: 1.15)),
-                  const SizedBox(height: 1),
-                  Text(
-                    '${order.customerName} · ${order.total.format()} · $payment',
-                    style: AppText.body(13, FontWeight.w500, color: AppColors.muted),
+                  Expanded(
+                    child: Text(indicator.name, style: AppText.body(15, FontWeight.w400)),
+                  ),
+                  const SizedBox(width: 10),
+                  StatusMark(
+                    indicator.evidence == EvidenceStatus.observed
+                        ? MarkKind.bad
+                        : MarkKind.pending,
+                    indicator.evidence.label,
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Text(
-              '+${commission.amount.formatFixed()}',
-              style: AppText.money(16, FontWeight.w800, color: color)
-                  .copyWith(decoration: decoration),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Guarda el token de sesión. La sesión dura hasta que el vendedor cierre
-/// sesión o el admin revoque el token (decisión de producto).
+/// Guarda el token de sesión. La sesión dura hasta que la persona cierre
+/// sesión o se revoque el token en el servidor (decisión de producto).
 abstract class TokenStorage {
   Future<String?> read();
   Future<void> write(String token);

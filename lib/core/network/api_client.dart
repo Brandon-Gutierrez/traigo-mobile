@@ -1,19 +1,15 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
 import '../storage/token_storage.dart';
 import 'api_exception.dart';
 import 'json.dart';
+import 'upload_file.dart';
 
-export 'json.dart' show Json;
-
-/// Archivo que se sube al backend (foto de comprobante o de merma).
-class UploadFile {
-  const UploadFile({required this.path, required this.filename});
-
-  final String path;
-  final String filename;
-}
+export 'json.dart';
+export 'upload_file.dart';
 
 /// Cliente HTTP de la app. Todo error sale como [ApiException].
 class ApiClient {
@@ -85,13 +81,40 @@ class ApiClient {
     );
   }
 
-  /// Cierra la sesión en el servidor. Si no es 2xx igual devuelve algo vacío.
-  Future<void> postNoContent(String path) async {
+  /// Una acción sin respuesta (`204`).
+  Future<void> postNoContent(String path, {Object? body}) async {
     try {
-      await _dio.post<Object?>(path);
+      await _dio.post<Object?>(path, data: body);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }
+  }
+
+  /// Descarga un archivo (los reportes de Excel).
+  Future<List<int>> download(String path, {Json? query}) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        path,
+        queryParameters: query,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data ?? const [];
+    } on DioException catch (e) {
+      throw ApiException.fromDio(_decodeBytesError(e));
+    }
+  }
+
+  /// En una descarga, el mensaje de error también llega como bytes.
+  static DioException _decodeBytesError(DioException error) {
+    final data = error.response?.data;
+    if (data is List<int>) {
+      try {
+        error.response!.data = jsonDecode(utf8.decode(data));
+      } on FormatException {
+        error.response!.data = null;
+      }
+    }
+    return error;
   }
 
   Options? _options(String? idempotencyKey) => idempotencyKey == null
@@ -130,8 +153,11 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    final isLogin = err.requestOptions.path.endsWith('/auth/login');
-    if (err.response?.statusCode == 401 && !isLogin) {
+    // Los pasos del ingreso (login y verificación) responden 401 o 422 sin
+    // que haya una sesión que cerrar.
+    final path = err.requestOptions.path;
+    final isSignIn = path.contains('/auth/login') || path.contains('/auth/two-factor');
+    if (err.response?.statusCode == 401 && !isSignIn) {
       _onUnauthorized();
     }
     handler.next(err);

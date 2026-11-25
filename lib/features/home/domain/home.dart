@@ -1,96 +1,180 @@
 import '../../../core/money/money.dart';
 import '../../../core/network/json.dart';
-import '../../orders/domain/orders.dart';
+import '../../orders/domain/payment_method.dart';
+import '../../team/domain/bonus.dart';
+import '../../team/domain/kpi.dart';
+import '../../warehouse/domain/cash_status.dart';
 
-class TodaySummary {
-  const TodaySummary({
-    required this.commission,
-    required this.salesCount,
-    required this.soldTotal,
+export '../../orders/domain/payment_method.dart';
+export '../../warehouse/domain/cash_status.dart';
+
+/// Mi KPI de la semana. El puntaje y el resultado los calcula el servidor
+/// (con las reglas del Excel); la app solo los muestra.
+class MyKpi {
+  const MyKpi({
+    required this.scorePercent,
+    required this.minimumPercent,
+    required this.compliance,
+    required this.indicators,
+    this.deliverables,
+    this.closedReason,
   });
 
-  factory TodaySummary.fromJson(Json json) => TodaySummary(
-        commission: json.money('commission'),
-        salesCount: json.integer('sales_count'),
-        soldTotal: json.money('sold_total'),
-      );
+  factory MyKpi.fromJson(Json json) {
+    final deliverables = json.objOrNull('deliverables');
+    return MyKpi(
+      closedReason: json.strOrNull('closed_reason'),
+      scorePercent: json.integer('score_percent'),
+      minimumPercent: json.integer('minimum_percent'),
+      compliance: Compliance.fromApi(json.str('compliance')),
+      indicators: json.list('indicators').map(KpiIndicator.fromJson).toList(),
+      deliverables: deliverables == null ? null : DeliverableProgress.fromJson(deliverables),
+    );
+  }
 
-  /// «Ganaste hoy».
-  final Money commission;
-  final int salesCount;
-  final Money soldTotal;
+  final int scorePercent;
+  final int minimumPercent;
+  final Compliance compliance;
+  final List<KpiIndicator> indicators;
+
+  /// Solo Sistemas: entregas técnicas obligatorias.
+  final DeliverableProgress? deliverables;
+
+  /// Motivo, si Jime cerró la semana de esta persona como «no cumple» porque
+  /// seguía pendiente.
+  final String? closedReason;
+
+  /// Indicadores cuya evidencia todavía no está validada.
+  List<KpiIndicator> get awaitingEvidence =>
+      indicators.where((i) => i.evidence != EvidenceStatus.validated).toList();
 }
 
-class MonthSummary {
-  const MonthSummary({
-    required this.personalCommission,
-    required this.fundShare,
-    required this.estimatedTotal,
+class DeliverableProgress {
+  const DeliverableProgress({required this.approved, required this.total});
+
+  factory DeliverableProgress.fromJson(Json json) =>
+      DeliverableProgress(approved: json.integer('approved'), total: json.integer('total'));
+
+  final int approved;
+  final int total;
+
+  bool get complete => approved >= total;
+}
+
+class TodaySale {
+  const TodaySale({
+    required this.id,
+    required this.createdAt,
+    required this.itemsLabel,
+    required this.customerName,
+    required this.total,
+    required this.paymentMethod,
   });
 
-  factory MonthSummary.fromJson(Json json) => MonthSummary(
-        personalCommission: json.money('personal_commission'),
-        fundShare: json.money('fund_share'),
-        estimatedTotal: json.money('estimated_total'),
+  factory TodaySale.fromJson(Json json) => TodaySale(
+        id: json.str('id'),
+        createdAt: json.date('created_at'),
+        itemsLabel: json.str('items_label'),
+        customerName: json.str('customer_name'),
+        total: json.money('total'),
+        paymentMethod: PaymentMethod.fromApi(json.str('payment_method')),
       );
 
-  final Money personalCommission;
-
-  /// Parte que le toca del fondo común del equipo.
-  final Money fundShare;
-  final Money estimatedTotal;
+  final String id;
+  final DateTime createdAt;
+  final String itemsLabel;
+  final String customerName;
+  final Money total;
+  final PaymentMethod paymentMethod;
 }
 
-class FundProgress {
-  const FundProgress({required this.current, required this.goal, this.prizeLabel});
+/// Comisión del mes de quien vende. Se paga una vez al mes.
+class MonthCommission {
+  const MonthCommission({required this.amount, this.payNote});
 
-  factory FundProgress.fromJson(Json json) => FundProgress(
-        current: json.money('current'),
-        goal: json.money('goal'),
-        prizeLabel: json.strOrNull('prize_label'),
+  factory MonthCommission.fromJson(Json json) => MonthCommission(
+        amount: json.money('amount'),
+        payNote: json.strOrNull('pay_note'),
       );
 
-  final Money current;
-  final Money goal;
+  final Money amount;
 
-  /// Premio del hito. `null` mientras el dueño no lo defina.
-  final String? prizeLabel;
-
-  Money get remaining => goal > current ? goal - current : Money.zero;
-
-  /// Entre 0 y 1, para la barra de avance.
-  double get progress =>
-      goal.cents == 0 ? 0 : (current.cents / goal.cents).clamp(0.0, 1.0);
+  /// Cuándo se paga. `null` = todavía por definir.
+  final String? payNote;
 }
 
-class HomeSummary {
-  const HomeSummary({
-    required this.today,
-    required this.month,
-    required this.fund,
-    required this.recentOrders,
-    this.payoutNote,
+/// Caja del día (almacén: cierra la caja de todo el equipo).
+class CashToday {
+  const CashToday({
+    required this.collected,
+    required this.paidOrders,
+    required this.pendingOrders,
+    required this.status,
   });
 
-  factory HomeSummary.fromJson(Json json) => HomeSummary(
-        today: TodaySummary.fromJson(json.obj('today')),
-        month: MonthSummary.fromJson(json.obj('month')),
-        fund: FundProgress.fromJson(json.obj('fund')),
-        payoutNote: json.strOrNull('payout_note'),
-        recentOrders: json.list('recent_orders').map(OrderSummary.fromJson).toList(),
+  factory CashToday.fromJson(Json json) => CashToday(
+        collected: json.money('collected'),
+        paidOrders: json.integer('paid_orders'),
+        pendingOrders: json.integer('pending_orders'),
+        status: CashStatus.fromApi(json.str('status')),
       );
 
-  final TodaySummary today;
-  final MonthSummary month;
-  final FundProgress fund;
+  final Money collected;
+  final int paidOrders;
+  final int pendingOrders;
+  final CashStatus status;
+}
 
-  /// Cómo y cuándo se pagan las comisiones. `null` = todavía por definir.
-  final String? payoutNote;
+/// Todo lo que muestra el Inicio de un integrante.
+class TeamHome {
+  const TeamHome({
+    required this.week,
+    required this.collected,
+    required this.fundShareRate,
+    required this.kpi,
+    this.monthCommission,
+    this.todaySales = const [],
+    this.cashToday,
+  });
 
-  /// Últimas ventas, para la lista «Ventas de hoy».
-  final List<OrderSummary> recentOrders;
+  factory TeamHome.fromJson(Json json) {
+    final commission = json.objOrNull('month_commission');
+    final cash = json.objOrNull('cash_today');
+    return TeamHome(
+      week: BonusWeek.fromJson(json.obj('week')),
+      collected: json.money('collected'),
+      fundShareRate: json.rate('fund_share_rate'),
+      kpi: MyKpi.fromJson(json.obj('kpi')),
+      monthCommission: commission == null ? null : MonthCommission.fromJson(commission),
+      todaySales: json.list('today_sales').map(TodaySale.fromJson).toList(),
+      cashToday: cash == null ? null : CashToday.fromJson(cash),
+    );
+  }
+
+  final BonusWeek week;
+
+  /// Ventas cobradas del equipo en la semana.
+  final Money collected;
+
+  /// Mi parte del fondo del bono: 0.20 = 20 %.
+  final double fundShareRate;
+  final MyKpi kpi;
+
+  /// Solo quienes venden.
+  final MonthCommission? monthCommission;
+  final List<TodaySale> todaySales;
+
+  /// Solo almacén.
+  final CashToday? cashToday;
+
+  int get percent => BonusRules.percent(collected, week.target);
+  BonusLevel get level => BonusRules.levelFor(collected, week.target);
+
+  /// Mi parte si el equipo cierra en [level] (y yo cumplo mi KPI).
+  Money shareAt(BonusLevel level) =>
+      BonusRules.prizeAt(week.basePrize, level).percent(fundShareRate);
 }
 
 abstract interface class HomeRepository {
-  Future<HomeSummary> load();
+  Future<TeamHome> load();
 }

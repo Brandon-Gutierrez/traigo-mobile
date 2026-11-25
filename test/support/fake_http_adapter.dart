@@ -42,6 +42,8 @@ class FakeHttpAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    // Como un servidor real, lee todo lo enviado (así se cierran los archivos).
+    await requestStream?.drain<void>();
     if (_queue.isEmpty) {
       throw StateError('No hay respuesta preparada para ${options.method} ${options.path}');
     }

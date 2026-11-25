@@ -4,14 +4,14 @@ import '../../../core/providers.dart';
 import '../../auth/application/session_controller.dart';
 import '../domain/home.dart';
 
-/// Resumen de Inicio. Se carga al abrir y al deslizar para actualizar.
+/// Inicio del equipo. Se carga al abrir y al deslizar para actualizar.
 ///
-/// Depende del vendedor que tiene la sesión: si se cierra sesión y entra otro,
-/// no queda ningún dato del anterior.
+/// Depende de quién tiene la sesión: si sale una persona y entra otra, no
+/// queda ningún dato de la anterior.
 ///
-/// Quien registre una venta o cancele un pedido debe invalidar este provider
-/// (`ref.invalidate(homeSummaryProvider)`) para que las cifras se actualicen.
-final homeSummaryProvider = FutureProvider<HomeSummary>((ref) {
-  ref.watch(sessionControllerProvider.select((s) => s.value?.seller.id));
+/// Quien registre una venta o suba una evidencia debe invalidarlo
+/// (`ref.invalidate(teamHomeProvider)`) para que las cifras se actualicen.
+final teamHomeProvider = FutureProvider<TeamHome>((ref) {
+  ref.watch(sessionControllerProvider.select((s) => s.value?.member.id));
   return ref.watch(homeRepositoryProvider).load();
 });

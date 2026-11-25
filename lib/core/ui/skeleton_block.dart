@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import 'chamfer.dart';
 
 /// Bloque gris que ocupa el lugar de un contenido mientras carga.
 class SkeletonBlock extends StatelessWidget {
@@ -11,10 +12,10 @@ class SkeletonBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: width,
-      color: AppColors.line.withValues(alpha: 0.7),
+    return ChamferBox(
+      color: AppColors.alt,
+      padding: EdgeInsets.zero,
+      child: SizedBox(height: height, width: width ?? double.infinity),
     );
   }
 }

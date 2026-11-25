@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../network/api_exception.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text.dart';
-import 'hard_button.dart';
-import 'hard_card.dart';
+import '../theme/app_theme.dart';
+import 'cut_button.dart';
 
-/// Texto de error listo para el vendedor, venga de la API o de un fallo
-/// inesperado.
+/// Texto de error listo para mostrar, venga de la API o de un fallo inesperado.
 String errorMessage(Object error) =>
     error is ApiException ? error.message : 'Algo salió mal. Intenta de nuevo.';
 
@@ -21,24 +18,22 @@ class ErrorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return HardCard(
-      color: AppColors.redSoft,
-      borderColor: AppColors.red,
-      shadowColor: AppColors.red,
+    return Container(
       padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: AppColors.alt,
+        border: Border(bottom: BorderSide(color: AppColors.alert, width: 3)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            message,
-            style: AppText.body(15, FontWeight.w700, color: AppColors.red, height: 1.3),
-          ),
+          Text(message, style: AppText.body(15, FontWeight.w600, color: AppColors.alert, height: 1.35)),
           const SizedBox(height: 14),
-          HardButton(
+          CutButton(
             label: 'Reintentar',
-            primary: false,
             height: 48,
-            fontSize: 16,
+            fontSize: 17,
+            color: AppColors.ink,
             onPressed: onRetry,
           ),
         ],

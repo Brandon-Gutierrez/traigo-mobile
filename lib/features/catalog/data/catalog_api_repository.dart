@@ -1,7 +1,5 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_paths.dart';
-import '../../../core/network/json.dart';
-import '../../../core/network/paged_result.dart';
 import '../domain/catalog.dart';
 
 class CatalogApiRepository implements CatalogRepository {
@@ -9,37 +7,29 @@ class CatalogApiRepository implements CatalogRepository {
 
   final ApiClient _api;
 
-  static const pageSize = 30;
-
   @override
-  Future<PagedResult<CatalogItem>> list({
-    String? search,
-    String? category,
-    CatalogKind? kind,
-    int page = 1,
-  }) async {
+  Future<CatalogPage> list({String? search, String? categoryId, int page = 1}) async {
+    final text = search?.trim();
     final json = await _api.get(
       ApiPaths.catalog,
       query: {
-        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
-        'category': ?category,
-        'kind': ?kind?.apiValue,
+        if (text != null && text.isNotEmpty) 'search': text,
+        'category': ?categoryId,
         'page': page,
-        'per_page': pageSize,
       },
     );
-    return PagedResult.fromJson(json, CatalogItem.fromJson);
+    return CatalogPage.fromJson(json);
   }
 
   @override
-  Future<List<String>> categories() async {
-    final json = await _api.get(ApiPaths.categories);
-    return (json['data'] as List? ?? const []).cast<String>();
+  Future<List<CatalogCategory>> categories() async {
+    final json = await _api.get(ApiPaths.catalogCategories);
+    return json.list('data').map(CatalogCategory.fromJson).toList();
   }
 
   @override
-  Future<CatalogItem> get(CatalogKind kind, String id) async {
-    final json = await _api.get(ApiPaths.catalogItem(kind.pathSegment, id));
+  Future<CatalogItem> item(String id) async {
+    final json = await _api.get(ApiPaths.catalogItem(id));
     return CatalogItem.fromJson(json.obj('data'));
   }
 }

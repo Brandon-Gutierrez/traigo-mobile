@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Traigo Vendedores</string>
+	<string>Traigo Equipo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,9 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Usamos la cámara para fotografiar el comprobante del QR y la evidencia de una merma.</string>
+	<string>Usamos la cámara para fotografiar comprobantes de pago y la evidencia de tu trabajo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Puedes elegir una foto existente como comprobante de pago o evidencia de una merma.</string>
+	<string>Puedes elegir una foto como comprobante de pago o como evidencia de tu trabajo.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

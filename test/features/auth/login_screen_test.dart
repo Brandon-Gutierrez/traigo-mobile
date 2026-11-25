@@ -5,13 +5,6 @@ import 'package:traigo/core/storage/last_code_storage.dart';
 
 import '../../support/test_app.dart';
 
-Future<void> tapPin(WidgetTester tester, String digits) async {
-  for (final digit in digits.split('')) {
-    await tester.tap(find.byKey(ValueKey('pin-key-$digit')));
-    await tester.pump();
-  }
-}
-
 Finder get codeField => find.byType(TextField);
 
 void main() {
@@ -21,13 +14,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ingresa a Traigo'), findsOneWidget);
-    expect(find.text('CÓDIGO DE VENDEDOR'), findsOneWidget);
+    expect(findTextContaining('Si lo olvidaste, pídeselo a Jime.'), findsOneWidget);
+    expect(find.text('CÓDIGO'), findsOneWidget);
     expect(find.text('Escribe tu código'), findsOneWidget);
-    expect(find.textContaining('Modo demo'), findsOneWidget);
+    expect(findTextContaining('Modo demo · PIN 1234'), findsOneWidget);
   });
 
-  testWidgets('el ingreso cabe en un celular sin desbordar', (tester) async {
-    useMobileScreen(tester);
+  testWidgets('el ingreso cabe en un celular chico sin desbordar', (tester) async {
+    useMobileScreen(tester, width: 320, height: 640);
     await tester.pumpWidget(testApp());
     await tester.pumpAndSettle();
 
@@ -36,35 +30,36 @@ void main() {
 
   testWidgets('precarga el último código y solo falta el PIN', (tester) async {
     useMobileScreen(tester, height: 1200);
-    await tester.pumpWidget(testApp(lastCode: MemoryLastCodeStorage('ANA-07')));
+    await tester.pumpWidget(testApp(lastCode: MemoryLastCodeStorage('ALI-04')));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(codeField).controller!.text, 'ANA-07');
+    expect(tester.widget<TextField>(codeField).controller!.text, 'ALI-04');
     expect(find.text('Faltan 4 números'), findsOneWidget);
   });
 
-  testWidgets('el botón dice cuánto falta y se habilita con código y 4 números', (tester) async {
+  testWidgets('el botón dice cuánto falta y se habilita con código y 4 números',
+      (tester) async {
     useMobileScreen(tester, height: 1200);
     await tester.pumpWidget(testApp());
     await tester.pumpAndSettle();
 
-    await tester.enterText(codeField, 'ana-07');
+    await tester.enterText(codeField, 'ali-04');
     await tester.pump();
     expect(find.text('Faltan 4 números'), findsOneWidget);
 
-    await tapPin(tester, '123');
-    expect(find.text('Faltan 1 número'), findsOneWidget);
+    await tapDigits(tester, '123');
+    expect(find.text('Falta 1 número'), findsOneWidget);
 
-    await tapPin(tester, '4');
+    await tapDigits(tester, '4');
     expect(find.text('Entrar'), findsOneWidget);
   });
 
   testWidgets('borrar quita el último número', (tester) async {
     useMobileScreen(tester, height: 1200);
-    await tester.pumpWidget(testApp(lastCode: MemoryLastCodeStorage('ANA-07')));
+    await tester.pumpWidget(testApp(lastCode: MemoryLastCodeStorage('ALI-04')));
     await tester.pumpAndSettle();
 
-    await tapPin(tester, '12');
+    await tapDigits(tester, '12');
     expect(find.text('Faltan 2 números'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('pin-backspace')));
@@ -72,12 +67,13 @@ void main() {
     expect(find.text('Faltan 3 números'), findsOneWidget);
   });
 
-  testWidgets('un PIN incorrecto muestra el error, limpia el PIN y no entra', (tester) async {
+  testWidgets('un PIN incorrecto muestra el error, limpia el PIN y no entra',
+      (tester) async {
     useMobileScreen(tester, height: 1200);
-    await tester.pumpWidget(testApp(lastCode: MemoryLastCodeStorage('ANA-07')));
+    await tester.pumpWidget(testApp(lastCode: MemoryLastCodeStorage('ALI-04')));
     await tester.pumpAndSettle();
 
-    await tapPin(tester, '9999');
+    await tapDigits(tester, '9999');
     await tester.tap(find.text('Entrar'));
     await tester.pumpAndSettle();
 
@@ -86,21 +82,22 @@ void main() {
     expect(find.text('Ingresa a Traigo'), findsOneWidget);
   });
 
-  testWidgets('código y PIN correctos llevan a Inicio y recuerdan el código', (tester) async {
+  testWidgets('código y PIN correctos llevan a Inicio y recuerdan el código',
+      (tester) async {
     useMobileScreen(tester, height: 1200);
     final lastCode = MemoryLastCodeStorage();
     await tester.pumpWidget(testApp(lastCode: lastCode));
     await tester.pumpAndSettle();
 
-    await tester.enterText(codeField, 'ana-07');
+    await tester.enterText(codeField, 'ali-04');
     await tester.pump();
-    await tapPin(tester, '1234');
+    await tapDigits(tester, '1234');
     await tester.tap(find.text('Entrar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Hola, Ana'), findsOneWidget);
+    expect(find.text('Hola, Alison'), findsOneWidget);
     expect(find.text('Ingresa a Traigo'), findsNothing);
-    expect(await lastCode.read(), 'ANA-07');
+    expect(await lastCode.read(), 'ALI-04');
     expect(await containerOf(tester).read(tokenStorageProvider).read(), isNotNull);
   });
 }

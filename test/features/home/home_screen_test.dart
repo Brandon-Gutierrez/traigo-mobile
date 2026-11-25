@@ -1,26 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/core/demo/demo_backend.dart';
-import 'package:traigo/core/money/money.dart';
 import 'package:traigo/core/network/api_exception.dart';
 import 'package:traigo/core/providers.dart';
-import 'package:traigo/features/catalog/domain/catalog.dart';
 import 'package:traigo/features/home/domain/home.dart';
-import 'package:traigo/features/orders/domain/orders.dart';
+import 'package:traigo/features/team/domain/bonus.dart';
 
 import '../../support/test_app.dart';
 
-/// Falla la primera vez (sin internet) y después responde con datos reales
-/// del servidor de prueba. Cuenta cuántas veces se le pidió el resumen.
-class FlakyHomeRepository implements HomeRepository {
-  FlakyHomeRepository(this._backend, {this.failFirst = true});
+/// Devuelve un Inicio fijo.
+class FixedHomeRepository implements HomeRepository {
+  FixedHomeRepository(this.home);
 
-  final DemoBackend _backend;
+  final TeamHome home;
+
+  @override
+  Future<TeamHome> load() async => home;
+}
+
+/// El Inicio de Sistemas 1 después de que Jime cerró su semana.
+TeamHome closedByControl(String reason) {
+  final home = (DemoBackend()..login('SIS-06', '1234')).home();
+  return TeamHome(
+    week: home.week,
+    collected: home.collected,
+    fundShareRate: home.fundShareRate,
+    kpi: MyKpi(
+      scorePercent: home.kpi.scorePercent,
+      minimumPercent: home.kpi.minimumPercent,
+      compliance: Compliance.fails,
+      indicators: home.kpi.indicators,
+      deliverables: home.kpi.deliverables,
+      closedReason: reason,
+    ),
+  );
+}
+
+/// Puede fallar la primera vez (sin internet) y después responde con los datos
+/// del servidor de prueba. Cuenta cuántas veces se le pidió el Inicio.
+class CountingHomeRepository implements HomeRepository {
+  CountingHomeRepository({this.failFirst = false});
+
+  final DemoBackend _backend = DemoBackend()..login('ALI-04', '1234');
   final bool failFirst;
   int calls = 0;
 
   @override
-  Future<HomeSummary> load() async {
+  Future<TeamHome> load() async {
     calls++;
     if (failFirst && calls == 1) throw const NetworkException();
     return _backend.home();
@@ -28,76 +54,141 @@ class FlakyHomeRepository implements HomeRepository {
 }
 
 void main() {
-  testWidgets('Inicio muestra lo ganado hoy, el mes, el fondo y las últimas ventas', (tester) async {
-    // Alto suficiente para que la lista construya también las últimas ventas
-    // (las que quedan fuera de pantalla no se construyen).
-    useMobileScreen(tester, height: 1500);
-    await tester.pumpWidget(testApp(tokens: signedInTokens()));
+  /// Abre la app ya ingresada. El alto grande hace que la lista construya
+  /// también lo que en un celular queda más abajo.
+  Future<void> openAs(WidgetTester tester, String code, {double height = 1500}) async {
+    useMobileScreen(tester, height: height);
+    await tester.pumpWidget(testApp(tokens: signedInTokens(code)));
     await tester.pumpAndSettle();
+  }
 
-    expect(find.text('Hola, Ana'), findsOneWidget);
-    expect(find.text('Equipo de ventas · código ANA-07'), findsOneWidget);
+  testWidgets('Inicio de Alison: bono, KPI, comisión y ventas de hoy', (tester) async {
+    await openAs(tester, 'ALI-04');
 
-    // Hoy
-    expect(find.text('GANASTE HOY'), findsOneWidget);
-    expect(find.text('Bs 86,40'), findsOneWidget);
-    expect(find.text('5 ventas · Bs 1.080 vendidos'), findsOneWidget);
+    expect(find.text('Hola, Alison'), findsOneWidget);
+    expect(find.text('VENTAS POR COMISIÓN · ALI-04'), findsOneWidget);
 
-    // Mes y fondo
-    expect(find.text('Bs 1.340,00'), findsOneWidget);
-    expect(find.text('Bs 643,33'), findsOneWidget);
-    expect(find.text('Bs 1.983,33'), findsOneWidget);
-    expect(findTextContaining('Fondo del equipo: Bs 3.860 de 5.000'), findsOneWidget);
-    expect(findTextContaining('Faltan Bs 1.140 para el hito (premio por definir)'), findsOneWidget);
-    expect(find.text('Pago de comisiones: por definir.'), findsOneWidget);
+    expect(find.text('BONO DEL EQUIPO · 1–6 DIC'), findsOneWidget);
+    expect(find.text('104 %'), findsOneWidget);
+    expect(findTextContaining('cobrado Bs 41.600 de Bs 40.000'), findsOneWidget);
+    expect(findTextContaining('Faltan Bs 4.400 para el superior (115 %).'), findsOneWidget);
+    expect(find.text('+ Registrar venta'), findsOneWidget);
 
-    // Últimas ventas (las dos más recientes de los datos de prueba). Las
-    // comisiones siempre llevan centavos.
-    expect(find.text('Combo Escritorio Pro'), findsOneWidget);
-    expect(find.textContaining('Mariela Quispe · Bs 199 · QR'), findsOneWidget);
-    expect(find.text('+Bs 3,20'), findsOneWidget);
-    expect(find.text('+Bs 8,00'), findsOneWidget);
+    expect(find.text('TU SEMANA'), findsOneWidget);
+    expect(find.text('83 %'), findsOneWidget);
+    expect(find.text('80 %'), findsOneWidget);
+    expect(find.text('Tu parte con el premio completo'), findsOneWidget);
+    expect(find.text('Bs 300'), findsOneWidget);
+    expect(find.text('Cumples tu mínimo'), findsOneWidget);
+
+    expect(find.text('ESTE MES'), findsOneWidget);
+    expect(find.text('Bs 412,50'), findsOneWidget);
+    expect(find.text('Se paga una vez al mes. Fecha de pago: por definir.'), findsOneWidget);
+
+    expect(find.text('VENTAS DE HOY'), findsOneWidget);
+    expect(find.text('Tomatodos de Messi × 2'), findsOneWidget);
+    expect(find.text('Mariela Quispe · QR'), findsOneWidget);
+    expect(find.text('[% por definir]'), findsNWidgets(2));
+
+    expect(find.text('CAJA DE HOY'), findsNothing);
+    expect(find.text('EVIDENCIA PENDIENTE'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('la barra inferior tiene las 5 pestañas y Vender es el botón central', (tester) async {
-    useMobileScreen(tester);
-    await tester.pumpWidget(testApp(tokens: signedInTokens()));
-    await tester.pumpAndSettle();
+  testWidgets('Kim ve que todavía no llega a su mínimo', (tester) async {
+    await openAs(tester, 'KIM-05');
 
-    for (final label in ['Inicio', 'Catálogo', 'Vender', 'Pedidos', 'Stock']) {
-      expect(find.text(label), findsOneWidget, reason: label);
-    }
+    expect(find.text('85 %'), findsOneWidget);
+    expect(find.text('Todavía no llegas a tu mínimo'), findsOneWidget);
+    expect(find.text('Bs 595,00'), findsOneWidget);
   });
 
-  testWidgets('«Registrar venta», «Merma» y «Ver todas» llevan a su pantalla', (tester) async {
-    useMobileScreen(tester, height: 1500);
-    await tester.pumpWidget(testApp(tokens: signedInTokens()));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('+ Registrar venta'));
-    await tester.pumpAndSettle();
-    expect(find.text('Registrar venta'), findsOneWidget);
-
-    await tester.tap(find.text('Inicio'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Merma'));
-    await tester.pumpAndSettle();
-    expect(find.text('Registrar merma'), findsOneWidget);
-
-    await tester.tap(find.text('Inicio'));
-    await tester.pumpAndSettle();
-    expect(find.text('Hola, Ana'), findsOneWidget);
-    await tester.tap(find.text('Ver todas'));
-    await tester.pumpAndSettle();
-    expect(find.text('Mis pedidos'), findsOneWidget);
-  });
-
-  testWidgets('sin internet muestra el error con su botón y se recupera al reintentar',
+  testWidgets('Isaí tiene el cierre de caja como acción y no ve comisiones',
       (tester) async {
+    await openAs(tester, 'ISA-03');
+
+    expect(find.text('Cierre de caja'), findsOneWidget);
+    expect(find.text('CAJA DE HOY'), findsOneWidget);
+    expect(find.text('Bs 4.968'), findsOneWidget);
+    expect(find.text('Sin enviar a Jime'), findsOneWidget);
+    expect(find.text('ESTE MES'), findsNothing);
+    expect(find.text('VENTAS DE HOY'), findsNothing);
+  });
+
+  testWidgets('Ailén sube evidencia y ve la que está en revisión', (tester) async {
+    await openAs(tester, 'AIL-02');
+
+    expect(find.text('Subir evidencia'), findsOneWidget);
+    expect(find.text('EVIDENCIA PENDIENTE'), findsOneWidget);
+    expect(find.text('LIVES realizados'), findsOneWidget);
+    expect(find.text('En revisión'), findsOneWidget);
+    expect(find.text('ENTREGAS TÉCNICAS'), findsNothing);
+  });
+
+  testWidgets('Sistemas 1 queda pendiente hasta que se validen sus entregas',
+      (tester) async {
+    await openAs(tester, 'SIS-06');
+
+    expect(find.text('Hola, Sistemas 1'), findsOneWidget);
+    expect(find.text('ENTREGAS TÉCNICAS'), findsOneWidget);
+    expect(find.text('2 de 4'), findsOneWidget);
+    expect(find.text('Pendiente: faltan entregas por validar'), findsOneWidget);
+    expect(find.text('Bs 150'), findsOneWidget);
+  });
+
+  testWidgets('si Jime cerró su semana, lo dice con el motivo', (tester) async {
+    useMobileScreen(tester, height: 1500);
+    await tester.pumpWidget(testApp(
+      tokens: signedInTokens('SIS-06'),
+      overrides: [
+        homeRepositoryProvider.overrideWithValue(
+          FixedHomeRepository(closedByControl('Solo 2 de 4 entregas validadas.')),
+        ),
+      ],
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Jime cerró tu semana: no cumple'), findsOneWidget);
+    expect(find.text('Motivo: Solo 2 de 4 entregas validadas.'), findsOneWidget);
+    expect(find.text('Todavía no llegas a tu mínimo'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('con todo validado, Sistemas 2 no tiene pendientes', (tester) async {
+    await openAs(tester, 'SIS-07');
+
+    expect(find.text('Tus entregas están completas.'), findsOneWidget);
+    expect(find.text('Toda tu evidencia está validada.'), findsOneWidget);
+  });
+
+  const actions = {
+    'ALI-04': ('+ Registrar venta', 'Llega en la fase 2.'),
+    'ISA-03': ('Cierre de caja', 'Llega en la fase 4.'),
+    'AIL-02': ('Subir evidencia', 'Llega en la fase 3.'),
+  };
+  for (final MapEntry(key: code, value: (action, arrival)) in actions.entries) {
+    testWidgets('la acción principal de $code lleva a su pantalla', (tester) async {
+      await openAs(tester, code);
+
+      await tester.tap(find.text(action));
+      await tester.pumpAndSettle();
+
+      expect(find.text(arrival), findsOneWidget);
+    });
+  }
+
+  testWidgets('«Ver mi semana» lleva a Mi semana', (tester) async {
+    await openAs(tester, 'ALI-04');
+
+    await tester.tap(find.text('Ver mi semana'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Tu KPI indicador por indicador'), findsOneWidget);
+  });
+
+  testWidgets('sin internet muestra el error y se recupera al reintentar', (tester) async {
     useMobileScreen(tester);
-    final backend = DemoBackend();
-    final repo = FlakyHomeRepository(backend);
+    final repo = CountingHomeRepository(failFirst: true);
     await tester.pumpWidget(testApp(
       tokens: signedInTokens(),
       overrides: [homeRepositoryProvider.overrideWithValue(repo)],
@@ -105,90 +196,46 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No hay conexión con el servidor'), findsOneWidget);
-    expect(find.text('Bs 86,40'), findsNothing);
-    // Aun con el error, las acciones principales siguen disponibles.
-    expect(find.text('+ Registrar venta'), findsOneWidget);
+    expect(find.text('104 %'), findsNothing);
 
     await tester.tap(find.text('Reintentar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bs 86,40'), findsOneWidget);
+    expect(find.text('104 %'), findsOneWidget);
     expect(repo.calls, 2);
   });
 
-  testWidgets('deslizar hacia abajo actualiza con los datos nuevos', (tester) async {
-    useMobileScreen(tester, height: 1500);
-    await tester.pumpWidget(testApp(tokens: signedInTokens()));
+  testWidgets('deslizar hacia abajo vuelve a pedir los datos', (tester) async {
+    useMobileScreen(tester);
+    final repo = CountingHomeRepository();
+    await tester.pumpWidget(testApp(
+      tokens: signedInTokens(),
+      overrides: [homeRepositoryProvider.overrideWithValue(repo)],
+    ));
     await tester.pumpAndSettle();
-    expect(find.text('Bs 86,40'), findsOneWidget);
-
-    // Entra una venta nueva (gana Bs 12,00) mientras Inicio está abierto.
-    containerOf(tester).read(demoBackendProvider).createOrder(CreateOrderInput(
-          clientRequestId: 'refresh-test',
-          lines: [
-            SaleLineInput(
-              kind: CatalogKind.product,
-              itemId: '1',
-              quantity: 1,
-              unitPrice: Money.parse('120'),
-            ),
-          ],
-          customer: const CustomerInput(name: 'Carla Rojas', whatsapp: '74567890'),
-          paymentMethod: PaymentMethod.cash,
-          delivery: const DeliveryInput(type: DeliveryType.handoff),
-        ));
-    await tester.pump();
-    expect(find.text('Bs 86,40'), findsOneWidget, reason: 'todavía no se actualizó');
+    expect(repo.calls, 1);
 
     await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
 
-    expect(find.text('Bs 98,40'), findsOneWidget);
-    expect(find.text('6 ventas · Bs 1.200 vendidos'), findsOneWidget);
-    expect(find.textContaining('Carla Rojas'), findsOneWidget);
+    expect(repo.calls, 2);
   });
 
-  group('cerrar sesión', () {
-    testWidgets('pide confirmación y, si se cancela, la sesión sigue', (tester) async {
-      useMobileScreen(tester);
-      final tokens = signedInTokens();
-      await tester.pumpWidget(testApp(tokens: tokens));
+  // Ningún Inicio debe desbordar, ni en un celular chico ni con letra grande.
+  for (final code in ['AIL-02', 'ISA-03', 'ALI-04', 'KIM-05', 'SIS-06', 'SIS-07']) {
+    testWidgets('el Inicio de $code cabe en 320 de ancho con letra grande', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      useMobileScreen(tester, width: 320, height: 640);
+      await tester.pumpWidget(testApp(tokens: signedInTokens(code)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Cerrar sesión'));
-      await tester.pumpAndSettle();
-      expect(find.text('¿Cerrar sesión?'), findsOneWidget);
+      for (var i = 0; i < 5; i++) {
+        await tester.drag(find.byType(ListView), const Offset(0, -400));
+        await tester.pumpAndSettle();
+      }
 
-      await tester.tap(find.text('Cancelar'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Hola, Ana'), findsOneWidget);
-      expect(await tokens.read(), isNotNull);
+      expect(tester.takeException(), isNull);
     });
-
-    testWidgets('al confirmar vuelve al ingreso, borra el token y recuerda el código',
-        (tester) async {
-      useMobileScreen(tester, height: 1200);
-      final tokens = signedInTokens();
-      await tester.pumpWidget(testApp(tokens: tokens));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byTooltip('Cerrar sesión'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Cerrar sesión'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Ingresa a Traigo'), findsOneWidget);
-      expect(await tokens.read(), isNull);
-    });
-  });
-
-  testWidgets('con un token guardado la app entra directo a Inicio', (tester) async {
-    useMobileScreen(tester);
-    await tester.pumpWidget(testApp(tokens: signedInTokens()));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Hola, Ana'), findsOneWidget);
-    expect(find.text('Ingresa a Traigo'), findsNothing);
-  });
+  }
 }

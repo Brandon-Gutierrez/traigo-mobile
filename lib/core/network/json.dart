@@ -39,4 +39,8 @@ extension JsonReaders on Json {
         for (final item in (this[key] as List? ?? const []))
           Map<String, dynamic>.from(item as Map),
       ];
+
+  List<String> strings(String key) => [
+        for (final item in (this[key] as List? ?? const [])) item as String,
+      ];
 }

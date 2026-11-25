@@ -1,114 +1,108 @@
+/// Catálogo único por código (SKU).
+library;
+
 import '../../../core/money/money.dart';
 import '../../../core/network/json.dart';
 import '../../../core/network/paged_result.dart';
 
-enum CatalogKind {
-  product('product', 'products'),
-  combo('combo', 'combos');
-
-  const CatalogKind(this.apiValue, this.pathSegment);
-
-  /// Valor del campo `kind` en el JSON.
-  final String apiValue;
-
-  /// Segmento de URL: `/catalog/products/12`.
-  final String pathSegment;
-
-  static CatalogKind fromApi(String value) =>
-      values.firstWhere((k) => k.apiValue == value);
-}
-
-enum StockLevel { ok, low, out }
-
-/// Producto suelto o combo. Los dos se venden igual desde la app.
 class CatalogItem {
   const CatalogItem({
     required this.id,
-    required this.kind,
-    required this.code,
+    required this.itemCode,
     required this.name,
     required this.category,
-    required this.suggestedPrice,
-    required this.minPrice,
+    required this.priceUnit,
     required this.stock,
-    required this.lowStockAlert,
+    required this.reserved,
+    required this.available,
+    this.priceWholesale,
+    this.wholesaleMinQty,
+    this.commissionPct,
     this.imageUrl,
-    this.components = const [],
+    this.description,
+    this.imageUrls = const [],
   });
 
   factory CatalogItem.fromJson(Json json) => CatalogItem(
         id: json.str('id'),
-        kind: CatalogKind.fromApi(json.str('kind')),
-        code: json.str('code'),
+        itemCode: json.str('item_code'),
         name: json.str('name'),
-        category: json.strOrNull('category') ?? '',
-        imageUrl: json.strOrNull('image_url'),
-        suggestedPrice: json.money('suggested_price'),
-        minPrice: json.money('min_price'),
+        category: json.str('category'),
+        priceUnit: json.money('price_unit'),
+        priceWholesale: json.moneyOrNull('price_wholesale'),
+        wholesaleMinQty: json.integerOrNull('wholesale_min_qty'),
         stock: json.integer('stock'),
-        lowStockAlert: json.integer('low_stock_alert'),
-        components: json.list('components').map(ComboComponent.fromJson).toList(),
+        reserved: json.integer('reserved'),
+        available: json.integer('available'),
+        commissionPct: json['commission_pct'] == null ? null : json.rate('commission_pct'),
+        imageUrl: json.strOrNull('image_url'),
+        description: json.strOrNull('description'),
+        imageUrls: json.strings('images'),
       );
 
   final String id;
-  final CatalogKind kind;
-  final String code;
+  final String itemCode;
   final String name;
   final String category;
-  final String? imageUrl;
+  final Money priceUnit;
+  final Money? priceWholesale;
 
-  /// Precio normal de la tienda. Es el precio con el que parte la venta.
-  final Money suggestedPrice;
+  /// Unidades mínimas del mismo código para el precio por mayor.
+  final int? wholesaleMinQty;
 
-  /// Piso para el vendedor, con el descuento de temporada ya aplicado.
-  /// Vender por debajo está prohibido y el servidor lo rechaza.
-  final Money minPrice;
-
-  /// Unidades en bodega central. Para un combo, cuántos combos completos se
-  /// pueden armar.
+  /// En bodega.
   final int stock;
 
-  /// Desde cuántas unidades se avisa «poco stock».
-  final int lowStockAlert;
+  /// Apartado por pedidos.
+  final int reserved;
 
-  /// Solo combos: qué productos lo forman.
-  final List<ComboComponent> components;
+  /// Lo que se puede vender.
+  final int available;
 
-  bool get isCombo => kind == CatalogKind.combo;
+  /// % de comisión del producto. `null` = por definir (la app muestra
+  /// «[% por definir]»).
+  final double? commissionPct;
+  final String? imageUrl;
 
-  StockLevel get stockLevel {
-    if (stock <= 0) return StockLevel.out;
-    if (stock <= lowStockAlert) return StockLevel.low;
-    return StockLevel.ok;
-  }
+  /// Solo en el detalle.
+  final String? description;
+  final List<String> imageUrls;
 
-  /// Ganancia máxima por unidad si se vende al precio sugerido.
-  Money get maxGainPerUnit => suggestedPrice - minPrice;
+  bool get soldOut => available <= 0;
 }
 
-class ComboComponent {
-  const ComboComponent({required this.name, required this.quantity});
+class CatalogCategory {
+  const CatalogCategory({required this.id, required this.name, required this.count});
 
-  factory ComboComponent.fromJson(Json json) => ComboComponent(
+  factory CatalogCategory.fromJson(Json json) => CatalogCategory(
+        id: json.str('id'),
         name: json.str('name'),
-        quantity: json.integer('quantity'),
+        count: json.integer('count'),
       );
 
+  final String id;
   final String name;
-  final int quantity;
+  final int count;
+}
+
+class CatalogPage {
+  const CatalogPage({required this.items, required this.wholesaleMinOrder});
+
+  factory CatalogPage.fromJson(Json json) => CatalogPage(
+        items: PagedResult.fromJson(json, CatalogItem.fromJson),
+        wholesaleMinOrder: json.obj('meta').money('wholesale_min_order'),
+      );
+
+  final PagedResult<CatalogItem> items;
+
+  /// Pedido mayorista mínimo vigente (hoy Bs 1.000).
+  final Money wholesaleMinOrder;
 }
 
 abstract interface class CatalogRepository {
-  /// Productos y combos, con stock actual. [search] busca por nombre o código.
-  Future<PagedResult<CatalogItem>> list({
-    String? search,
-    String? category,
-    CatalogKind? kind,
-    int page = 1,
-  });
+  Future<CatalogPage> list({String? search, String? categoryId, int page = 1});
 
-  Future<List<String>> categories();
+  Future<List<CatalogCategory>> categories();
 
-  /// Un ítem con su stock y mínimo vigentes. Se usa justo antes de vender.
-  Future<CatalogItem> get(CatalogKind kind, String id);
+  Future<CatalogItem> item(String id);
 }
