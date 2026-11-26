@@ -87,6 +87,8 @@ class DemoWarehouse {
       );
     }
 
+    // Lo que entra en este cierre (se calcula antes de marcarlo enviado).
+    final included = {for (final c in _collectionsOf(date)) c.orderId};
     final lines = [
       for (final line in _day(date).lines)
         CashLine(
@@ -115,6 +117,7 @@ class DemoWarehouse {
       sentAt: _now(),
       note: note.isEmpty ? null : note,
     );
+    _sales.linkToClosing(date, included);
     _audit.log(member.name, 'Envió el cierre de caja del ${date.day} dic');
     return _sentClosings[closing.clientUuid] = _day(date);
   }
@@ -143,12 +146,12 @@ class DemoWarehouse {
 
   CashDay closingById(String id) => _day(_dateOfClosing(id));
 
-  /// Al validar, el efectivo de ese día queda confirmado.
+  /// Al validar, queda confirmado el efectivo de ese cierre.
   CashDay validateClosing(String id) {
     final date = _dateOfClosing(id);
     final closing = _requireSent(date);
     _closings[date] = closing.reviewed(CashStatus.validated);
-    _sales.confirmCashOn(date);
+    _sales.confirmCashIn(date);
     return _day(date);
   }
 
@@ -223,8 +226,28 @@ class DemoWarehouse {
     );
   }
 
+  /// Los cobros que van en la caja de [date]: los que ya quedaron en su cierre
+  /// y los que todavía no están en ninguno y le tocan (los de ese día y los que
+  /// llegaron después de que su día se envió). Lo de antes de la campaña va con
+  /// el primer día. Así cada cobro queda en un solo cierre.
+  List<DemoCollection> _collectionsOf(DateTime date) => [
+        for (final c in _sales.collections())
+          if (c.closingDay == date || (c.closingDay == null && _belongsTo(c, date))) c,
+      ];
+
+  bool _belongsTo(DemoCollection collection, DateTime date) {
+    var day = _dateOnly(collection.receivedAt);
+    if (!date.isBefore(firstDay) && day.isBefore(firstDay)) day = firstDay;
+    return day == date || (day.isBefore(date) && _isSent(day));
+  }
+
+  bool _isSent(DateTime day) => switch (_closings[day]?.status) {
+        CashStatus.sent || CashStatus.validated => true,
+        _ => false,
+      };
+
   List<CashLine> _expectedLines(DateTime date, _Closing? previous) {
-    final collections = _sales.collectionsOn(date);
+    final collections = _collectionsOf(date);
     final methods = [
       PaymentMethod.qr,
       PaymentMethod.transfer,
@@ -397,7 +420,10 @@ class DemoWarehouse {
         sentAt: dec(day, 19, 0),
       );
     }
-    // El del sábado 5 está enviado: Jime lo revisa.
+    // El del viernes 4 tiene una observación y el del sábado 5 está enviado:
+    // Jime lo revisa.
+    _sales.linkToClosing(dec(4), {for (final c in _collectionsOf(dec(4))) c.orderId});
+    final saturday = _collectionsOf(dec(5));
     _closings[dec(5)] = _Closing(
       status: CashStatus.sent,
       lines: [
@@ -410,8 +436,9 @@ class DemoWarehouse {
           ),
       ],
       closedByName: 'Isaí',
-      sentAt: dec(5, 18, 30),
+      sentAt: dec(5, 21, 45),
     );
+    _sales.linkToClosing(dec(5), {for (final c in saturday) c.orderId});
     _closings[dec(4)] = _Closing(
       status: CashStatus.observed,
       lines: lines([

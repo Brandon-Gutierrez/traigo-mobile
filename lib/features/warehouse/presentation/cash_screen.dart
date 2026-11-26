@@ -349,7 +349,10 @@ class _ClosingFormState extends ConsumerState<_ClosingForm> {
       HapticFeedback.heavyImpact();
       if (!mounted) return;
       setState(() => _error = submitErrorMessage(e));
-      if (e is ConflictException) refreshWarehouseData(ref);
+      // Sin explicación solo se envía lo que aquí cuadra: si el servidor ve una
+      // diferencia, cambiaron los cobros y hay que traer los montos de nuevo.
+      final outdated = e is ValidationException && e.code == 'difference_needs_note';
+      if (e is ConflictException || outdated) refreshWarehouseData(ref);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

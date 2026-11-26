@@ -37,6 +37,47 @@ void main() {
   WeeklyClosing sendClosing() => backend.control
       .sendWeeklyClosing(1, duplicatesCleared: true, closePending: pendingReason);
 
+  group('reglas decididas con el backend', () {
+    test('al devolver, la comisión ganada se descuenta una sola vez', () {
+      final control = backend.control;
+      control.proposePrice('p-8923', PriceValues(commissionPct: 5));
+      final request = control.authorizations().firstWhere(
+          (a) => a.type == AuthorizationType.priceChange && a.id != 'pc-1');
+      control.approve(request.type, request.id);
+      CommissionRow alisonRow() =>
+          control.commissions('2026-12').members.firstWhere((m) => m.id == alison.id);
+      final before = alisonRow().amount!;
+      expect(before, greaterThan(Money.zero));
+
+      control.returnOrder('1045', 'Llegó golpeado');
+
+      final after = alisonRow();
+      expect(after.amount, Money.zero);
+      expect(after.adjustments, Money.fromCents(-before.cents));
+    });
+
+    test('con el cierre en Dirección la semana no cambia hasta que lo devuelva', () {
+      reviewEverything(backend);
+      sendClosing();
+
+      expect(() => backend.control.validateResult('4-1', 10), conflict('week_closed'));
+
+      backend.control.sendBack(AuthorizationType.weeklyBonus, '1', 'Falta un dato');
+      expect(backend.control.validateResult('4-1', 10).indicator.actual, 10);
+    });
+
+    test('un pago confirmado después de la hora no es atraso de almacén', () {
+      final late = DemoBackend(clock: () => DateTime(2026, 11, 24, 19));
+      late.control.confirmPayment('1046', amountMatches: true, destinationOk: true);
+      final queue = late.warehouse
+          .dispatches(DemoBackend.members.firstWhere((m) => m.code == 'ISA-03'));
+
+      expect(queue.firstWhere((d) => d.orderId == '1046').isLate, isFalse);
+      expect(queue.firstWhere((d) => d.orderId == '1045').isLate, isTrue,
+          reason: 'estaba pagado a tiempo y no se entregó');
+    });
+  });
+
   group('bandeja', () {
     test('junta todo, de lo más antiguo a lo más nuevo, y filtra por tipo', () {
       final items = backend.control.pending();
@@ -197,9 +238,13 @@ void main() {
       backend.control.approve(item.type, item.id);
 
       expect(backend.control.bonus().status, WeekClosingStatus.authorized);
-      final result = backend.control.pending(type: PendingType.deliverable).single;
+      // La entrega sin revisar sale de la bandeja: esa semana ya no cambia.
+      expect(backend.control.pending(type: PendingType.deliverable), isEmpty);
+      final waiting = backend.team
+          .allDeliverables()
+          .firstWhere((d) => d.status == DeliverableStatus.inReview);
       expect(
-        () => backend.control.validateDeliverable(result.id, DateTime(2026, 11, 30)),
+        () => backend.control.validateDeliverable(waiting.id, DateTime(2026, 11, 30)),
         conflict('week_closed'),
       );
       expect(() => backend.control.markBonusPaid(1, '5'), conflict('not_ready_to_pay'),

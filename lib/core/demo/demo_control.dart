@@ -242,6 +242,17 @@ class DemoControl {
 
   // ─────────────────────────────────────────────── cierre semanal y bono
 
+  /// La demo solo tiene la primera semana.
+  ComplianceWeek compliance({int? weekNumber}) {
+    _requireWeek(weekNumber ?? DemoControl.weekNumber);
+    return ComplianceWeek(
+      weekNumber: DemoControl.weekNumber,
+      week: DemoBackend.week,
+      currentWeek: DemoControl.weekNumber,
+      rows: _team.compliance(),
+    );
+  }
+
   WeekClosingStatus _status = WeekClosingStatus.open;
   String? _observations;
   String? _returnReason;
@@ -297,14 +308,18 @@ class DemoControl {
             ),
       ];
 
-  WeeklyClosing weeklyClosing() {
+  WeeklyClosing weeklyClosing({int? weekNumber}) {
+    _requireWeek(weekNumber ?? DemoControl.weekNumber);
     final checks = _systemChecks();
     final week = DemoBackend.week;
     final removed = _sales.duplicatesBetween(week.startsOn, week.endsOn);
     final authorized = _status == WeekClosingStatus.authorized ||
         _status == WeekClosingStatus.paid;
     return WeeklyClosing(
-      weekNumber: weekNumber,
+      weekNumber: DemoControl.weekNumber,
+      currentWeek: DemoControl.weekNumber,
+      // La demo está fija en el domingo 6: deja enviar ese mismo día.
+      sendableFrom: week.endsOn,
       week: week,
       status: _status,
       paymentsReconciled: checks.payments,
@@ -377,6 +392,7 @@ class DemoControl {
     };
     _snapshot = _previewRows();
     _status = WeekClosingStatus.sent;
+    _team.weekWithDirection = true;
     _sentAt = _now();
     _returnReason = null;
     final note = observations?.trim() ?? '';
@@ -433,7 +449,8 @@ class DemoControl {
           ),
       ];
 
-  WeekBonus bonus() {
+  WeekBonus bonus({int? weekNumber}) {
+    _requireWeek(weekNumber ?? DemoControl.weekNumber);
     final week = DemoBackend.week;
     final level = BonusRules.levelFor(DemoBackend.collected, week.target);
     final fund = BonusRules.prizeAt(week.basePrize, level);
@@ -443,7 +460,8 @@ class DemoControl {
       (sum, r) => r.compliance == Compliance.passes ? sum + r.shareAmount : sum,
     );
     return WeekBonus(
-      weekNumber: weekNumber,
+      weekNumber: DemoControl.weekNumber,
+      currentWeek: DemoControl.weekNumber,
       week: week,
       status: _status,
       collected: DemoBackend.collected,
@@ -736,7 +754,9 @@ class DemoControl {
         final payable = bonus().payable;
         _status = WeekClosingStatus.authorized;
         _authorizedAt = _now();
-        _team.weekAuthorized = true;
+        _team
+          ..weekAuthorized = true
+          ..weekWithDirection = false;
         _audit.log(
           _management,
           'Autorizó el bono de la semana ${DemoBackend.week.label} (${payable.format()})',
@@ -768,7 +788,9 @@ class DemoControl {
         _status = WeekClosingStatus.returned;
         _returnReason = reason.trim();
         // Los cierres a mano se vuelven a indicar al reenviar.
-        _team.closedReasons = {};
+        _team
+          ..closedReasons = {}
+          ..weekWithDirection = false;
         _snapshot = null;
         _audit.log(_management, 'Devolvió el cierre a Jime: ${reason.trim()}');
       case AuthorizationType.priceChange:

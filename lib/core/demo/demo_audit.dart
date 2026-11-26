@@ -11,7 +11,7 @@ class DemoAudit {
     for (final (at, actor, description) in [
       (dec(4, 9, 12), 'Isaí', 'Hizo un conteo: 1 producto con diferencia'),
       (dec(5, 17, 2), 'Dirección', 'Autorizó el precio de Tomatodos de Ronaldo: Bs 87 → Bs 89'),
-      (dec(5, 18, 30), 'Isaí', 'Envió el cierre de caja del sábado 5 dic'),
+      (dec(5, 21, 45), 'Isaí', 'Envió el cierre de caja del sábado 5 dic'),
       (dec(6, 9, 50), 'Jime', 'Confirmó el pago N-1043 (Bs 2.016)'),
       (dec(6, 10, 42), 'Jime', 'Cargó el valor real de «Pedidos propios efectivamente pagados» de Alison: 4'),
     ]) {

@@ -175,15 +175,22 @@ class DemoBackend {
     if (member.role.isControlSide) {
       throw const NotFoundException('El panel de control no tiene Inicio de equipo.');
     }
-    final commission = team.monthCommission(member.id);
     return TeamHome(
       week: week,
       collected: collected,
       fundShareRate: team.shareRate(member.id),
       kpi: team.kpiOf(member.id),
-      monthCommission: commission == null ? null : MonthCommission(amount: commission),
+      monthCommission: member.role.canSell ? _monthCommission(member.id) : null,
       todaySales: sales.todaySales(member.id, today),
       cashToday: member.role == MemberRole.warehouse ? warehouse.todaySummary() : null,
+    );
+  }
+
+  /// Lo cobrado este mes; sin monto mientras falte el % de alguna venta.
+  MonthCommission _monthCommission(String sellerId) {
+    final month = sales.commissionsOf(sellerId, today);
+    return MonthCommission(
+      amount: month.ratesPending ? null : month.rated + month.adjustments,
     );
   }
 

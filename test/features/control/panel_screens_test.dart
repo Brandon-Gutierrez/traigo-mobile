@@ -10,6 +10,7 @@ import 'package:traigo/features/auth/domain/auth.dart';
 import 'package:traigo/features/control/application/control_providers.dart';
 import 'package:traigo/features/control/domain/admin.dart';
 import 'package:traigo/features/control/presentation/panel_widgets.dart';
+import 'package:traigo/features/management/domain/authorizations.dart';
 
 import '../../support/panel_helpers.dart';
 import '../../support/sales_helpers.dart';
@@ -258,7 +259,10 @@ void main() {
       await openTab(tester, 'JIM-01', null, height: 1500);
       final backend = backendOf(tester);
       sendWeek(backend);
-      final item = backend.control.authorizations().first;
+      // El bono, no la primera: el orden depende de la hora del día.
+      final item = backend.control
+          .authorizations()
+          .firstWhere((a) => a.type == AuthorizationType.weeklyBonus);
       backend.control.approve(item.type, item.id);
       await tapTab(tester, 'Bonos');
       await reload(tester);

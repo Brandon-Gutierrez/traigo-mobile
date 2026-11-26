@@ -8,10 +8,9 @@ class PayoutsApiRepository implements PayoutsRepository {
   final ApiClient _api;
 
   @override
-  Future<List<ComplianceRow>> compliance({int? weekNumber}) async {
-    final json = await _api.get(ApiPaths.controlCompliance, query: {'week': ?weekNumber});
-    return json.list('data').map(ComplianceRow.fromJson).toList();
-  }
+  Future<ComplianceWeek> compliance({int? weekNumber}) async => ComplianceWeek.fromJson(
+        await _api.get(ApiPaths.controlCompliance, query: {'week': ?weekNumber}),
+      );
 
   @override
   Future<WeeklyClosing> weeklyClosing({int? weekNumber}) async => _closing(

@@ -15,6 +15,15 @@ import '../network/paged_result.dart';
 import 'demo_backend.dart';
 import 'demo_catalog.dart';
 
+/// Un cobro como lo mira la caja.
+typedef DemoCollection = ({
+  String orderId,
+  PaymentMethod method,
+  Money amount,
+  DateTime receivedAt,
+  DateTime? closingDay,
+});
+
 /// Catálogo y ventas de la demo, con las mismas reglas que el contrato:
 /// precio por mayor por producto, reserva de stock, venta registrada una sola
 /// vez y comprobantes. Vive en memoria: al reiniciar la app vuelve a empezar.
@@ -298,6 +307,8 @@ class DemoSales {
         message: 'Ese número de referencia ya se usó en otro pago.',
       );
     }
+    // El rechazado se quedó en su cierre: este es un cobro nuevo.
+    if (order.payment?.status == PaymentStatus.rejected) order.closingDay = null;
     order
       ..status = OrderStatus.paymentReview
       ..payment = OrderPayment(
@@ -349,13 +360,22 @@ class DemoSales {
           ],
           deliveryType: o.deliveryType,
           status: o.status,
-          isLate: o.promisedAt != null && now.isAfter(o.promisedAt!),
+          isLate: _isLate(o, now),
           customerPhone: o.customerPhone,
           shippingAddress: o.address,
           paidAt: o.paidAt,
           promisedAt: o.promisedAt,
         ),
     ];
+  }
+
+  /// Pasó la hora acordada. Un QR confirmado después de esa hora no es atraso
+  /// de almacén; el efectivo se cobra al registrar la venta.
+  static bool _isLate(_DemoOrder o, DateTime now) {
+    final promised = o.promisedAt;
+    if (promised == null || !now.isAfter(promised)) return false;
+    return o.method == PaymentMethod.cash ||
+        (o.paidAt != null && !o.paidAt!.isAfter(promised));
   }
 
   void markReady(String id) {
@@ -389,19 +409,37 @@ class DemoSales {
     return order;
   }
 
-  /// Los cobros de un día como los suma la caja: comprobantes enviados o
-  /// confirmados y el efectivo recibido.
-  List<({PaymentMethod method, Money amount})> collectionsOn(DateTime day) => [
+  /// Los cobros como los suma la caja (comprobantes enviados o confirmados y
+  /// el efectivo recibido), con cuándo llegó el dinero y el día del cierre que
+  /// ya los incluyó.
+  List<DemoCollection> collections() => [
         for (final o in _orders)
           if (o.payment case final payment?
               when (payment.status == PaymentStatus.submitted ||
                       payment.status == PaymentStatus.confirmed) &&
                   o.status != OrderStatus.cancelled &&
                   o.status != OrderStatus.returned &&
-                  payment.submittedAt != null &&
-                  _sameDay(payment.submittedAt!, day))
-            (method: payment.method, amount: o.total),
+                  payment.submittedAt != null)
+            (
+              orderId: o.id,
+              method: payment.method,
+              amount: o.total,
+              receivedAt: payment.submittedAt!,
+              closingDay: o.closingDay,
+            ),
       ];
+
+  /// El cierre del [day] se envió con estos cobros; lo que antes estaba en él y
+  /// ya no entra queda libre.
+  void linkToClosing(DateTime day, Set<String> orderIds) {
+    for (final order in _orders) {
+      if (orderIds.contains(order.id)) {
+        order.closingDay = day;
+      } else if (order.closingDay == day) {
+        order.closingDay = null;
+      }
+    }
+  }
 
   /// Pedidos de ese día que todavía no se cobraron.
   List<PendingCollection> pendingOn(DateTime day) => [
@@ -499,14 +537,14 @@ class DemoSales {
     return _paymentReview(order);
   }
 
-  /// Al validar la caja de [day], el efectivo de ese día queda confirmado.
-  void confirmCashOn(DateTime day) {
+  /// Al validar la caja de [day], queda confirmado el efectivo de ese cierre.
+  void confirmCashIn(DateTime day) {
     for (final order in _orders) {
       final payment = order.payment;
       if (payment != null &&
           payment.method == PaymentMethod.cash &&
           payment.status == PaymentStatus.submitted &&
-          _sameDay(payment.submittedAt!, day)) {
+          order.closingDay == day) {
         order.payment = _withStatus(payment, PaymentStatus.confirmed);
       }
     }
@@ -706,10 +744,13 @@ class DemoSales {
     DateTime month,
   ) {
     bool inMonth(DateTime at) => at.year == month.year && at.month == month.month;
+    // Lo ganado sigue contando aunque se devuelva: se descuenta con su ajuste.
     final earned = [
       for (final o in _orders)
         if (o.sellerId == sellerId &&
-            o.payment?.status == PaymentStatus.confirmed &&
+            (o.payment?.status == PaymentStatus.confirmed ||
+                (o.payment?.status == PaymentStatus.reversed &&
+                    o.commissionAmount != null)) &&
             inMonth(o.payment!.submittedAt ?? o.createdAt))
           o,
     ];
@@ -1068,6 +1109,9 @@ class _DemoOrder {
   String? voidReason;
   String? duplicateOfId;
   DateTime? voidedAt;
+
+  /// El día de la caja que ya incluyó su cobro.
+  DateTime? closingDay;
 
   /// La comisión del pedido, o `null` mientras falte el % de algún producto.
   Money? get commissionAmount {

@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/core/demo/demo_backend.dart';
+import 'package:traigo/core/demo/demo_sales.dart';
+import 'package:traigo/core/demo/demo_warehouse.dart';
 import 'package:traigo/core/money/money.dart';
 import 'package:traigo/core/network/api_exception.dart';
 import 'package:traigo/features/auth/domain/auth.dart';
@@ -182,6 +184,46 @@ void main() {
       );
       expect(() => day(DateTime(2026, 11, 30)), notFound);
       expect(() => day(today.add(const Duration(days: 1))), notFound);
+    });
+
+    test('un cobro después de enviar pasa al siguiente cierre', () {
+      // La demo vive el 6; para llegar al 7 hace falta un reloj propio.
+      var now = DateTime(2026, 12, 6, 12);
+      final sales = DemoSales(now: () => now);
+      final warehouse = DemoWarehouse(now: () => now, sales: sales);
+      final sunday = warehouse.sendClosing(isai, closing(warehouse.cashToday(isai)));
+
+      now = DateTime(2026, 12, 6, 19);
+      final late = sales.create(
+        alison,
+        NewSale(
+          clientUuid: 's-1',
+          origin: OrderOrigin.inPerson,
+          customerName: 'Ana',
+          deliveryType: DeliveryType.pickup,
+          paymentMethod: PaymentMethod.cash,
+          lines: const [(productId: 'p-8107', quantity: 1)],
+          expectedTotal: Money.parse('87'),
+          promisedAt: DateTime(2026, 12, 6, 20),
+        ),
+      );
+      PaymentStatus lateStatus() => sales.order(alison, late.summary.id).payment!.status;
+
+      expect(warehouse.cashToday(isai).collected, sunday.collected,
+          reason: 'lo enviado no cambia');
+      warehouse.validateClosing(sunday.closingId!);
+      expect(lateStatus(), PaymentStatus.submitted, reason: 'no estaba en ese cierre');
+
+      now = DateTime(2026, 12, 7, 10);
+      final monday = warehouse.cashToday(isai);
+      expect(monday.collected, Money.parse('87'));
+      expect(warehouse.cashDay(isai, DateTime(2026, 12, 3)).collected, Money.zero,
+          reason: 'un día anterior no se lo lleva');
+
+      final sent = warehouse.sendClosing(isai, closing(monday, key: 'c-2'));
+      warehouse.validateClosing(sent.closingId!);
+      expect(lateStatus(), PaymentStatus.confirmed);
+      expect(warehouse.cashDay(isai, today).collected, sunday.collected);
     });
   });
 

@@ -93,11 +93,12 @@ class MonthCommission {
   const MonthCommission({required this.amount, this.payNote});
 
   factory MonthCommission.fromJson(Json json) => MonthCommission(
-        amount: json.money('amount'),
+        amount: json.moneyOrNull('amount'),
         payNote: json.strOrNull('pay_note'),
       );
 
-  final Money amount;
+  /// `null` si alguna venta cobrada todavía no tiene % definido.
+  final Money? amount;
 
   /// Cuándo se paga. `null` = todavía por definir.
   final String? payNote;

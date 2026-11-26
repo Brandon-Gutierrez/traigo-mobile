@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:traigo/core/demo/demo_backend.dart';
 import 'package:traigo/core/money/money.dart';
 import 'package:traigo/core/network/api_exception.dart';
+import 'package:traigo/features/control/domain/admin.dart';
 import 'package:traigo/features/auth/domain/auth.dart';
 import 'package:traigo/features/home/domain/home.dart';
 import 'package:traigo/features/team/domain/bonus.dart';
@@ -114,7 +115,9 @@ void main() {
 
     test('cada puesto recibe solo lo suyo', () {
       final alison = homeOf('ALI-04');
-      expect(alison.monthCommission?.amount, Money.parse('412.50'));
+      expect(alison.monthCommission, isNotNull);
+      expect(alison.monthCommission!.amount, isNull,
+          reason: 'su venta cobrada todavía no tiene %');
       expect(alison.todaySales, hasLength(2));
       expect(alison.cashToday, isNull);
 
@@ -128,6 +131,16 @@ void main() {
 
       expect(homeOf('SIS-06').kpi.deliverables?.approved, 2);
       expect(homeOf('AIL-02').kpi.deliverables, isNull);
+    });
+
+    test('con el % definido, la comisión del mes ya tiene monto', () {
+      backend.sales.applyPriceChange(
+        'p-8923',
+        const PriceValues(commissionPct: 5),
+      );
+
+      // Su única venta cobrada es la N-1045 (Bs 80).
+      expect(homeOf('ALI-04').monthCommission?.amount, Money.parse('4'));
     });
 
     test('el resumen de control cuadra con lo que ve cada integrante', () {

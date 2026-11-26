@@ -4,7 +4,37 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/ui/ficha.dart';
 import '../../orders/presentation/order_widgets.dart';
+
+/// Cambiar de semana en el panel. Sin elegir, el servidor abre la que toca;
+/// [chosen] es la elegida a mano.
+class WeekNav extends StatelessWidget {
+  const WeekNav({
+    super.key,
+    required this.shown,
+    required this.current,
+    required this.onShow,
+    this.chosen,
+    this.pendingLabel = 'Ir a la que falta cerrar',
+  });
+
+  final int shown;
+  final int current;
+  final int? chosen;
+  final String pendingLabel;
+  final void Function(int? week) onShow;
+
+  @override
+  Widget build(BuildContext context) {
+    final links = [
+      if (shown > 1) TextLink('‹ Semana anterior', onTap: () => onShow(shown - 1)),
+      if (shown < current) TextLink('Semana siguiente ›', onTap: () => onShow(shown + 1)),
+      if (chosen != null) TextLink(pendingLabel, onTap: () => onShow(null)),
+    ];
+    return links.isEmpty ? const SizedBox.shrink() : Wrap(spacing: 20, children: links);
+  }
+}
 
 /// «hace 12 min», «hace 3 h», «ayer 18:30» o «4 dic».
 String timeAgo(DateTime at, DateTime now) {

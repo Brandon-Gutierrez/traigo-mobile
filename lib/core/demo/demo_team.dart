@@ -45,12 +45,17 @@ class DemoTeam {
   /// Dirección ya autorizó la semana: nada cambia.
   bool weekAuthorized = false;
 
+  /// El cierre está con Dirección: la semana no cambia hasta que lo devuelva.
+  bool weekWithDirection = false;
+
+  bool get _weekFrozen => weekAuthorized || weekWithDirection;
+
   /// Cuándo se envió cada entrega que espera a Jime.
   final Map<String, DateTime> _deliverableSentAt = {'d-2': DateTime(2026, 12, 5, 12, 0)};
 
   /// La semana de esta persona todavía admite envíos.
   bool _acceptsEvidence(String memberId) =>
-      !weekAuthorized && !closedReasons.containsKey(memberId);
+      !_weekFrozen && !closedReasons.containsKey(memberId);
 
   void _requireOpenWeek(String memberId) {
     if (!_acceptsEvidence(memberId)) {
@@ -68,11 +73,6 @@ class DemoTeam {
   int _nextEvidence = 1;
 
   double shareRate(String memberId) => _profile(memberId).shareRate;
-
-  Money? monthCommission(String memberId) {
-    final amount = _profile(memberId).monthCommission;
-    return amount == null ? null : Money.parse(amount);
-  }
 
   MyKpi kpiOf(String memberId) {
     final profile = _profile(memberId);
@@ -326,7 +326,7 @@ class DemoTeam {
 
   /// Carga el valor real y valida la evidencia que esperaba.
   EvidenceReview validateResult(String resultId, double actual) {
-    _requireUnauthorized();
+    _requireEditableWeek();
     if (actual < 0) {
       throw const ValidationException(message: 'El valor real no puede ser negativo.');
     }
@@ -340,7 +340,7 @@ class DemoTeam {
   }
 
   EvidenceReview observeResult(String resultId, String note) {
-    _requireUnauthorized();
+    _requireEditableWeek();
     if (note.trim().isEmpty) {
       throw const ValidationException(message: 'Escribe qué falta.');
     }
@@ -381,11 +381,14 @@ class DemoTeam {
     throw const NotFoundException('No encontramos ese indicador.');
   }
 
-  void _requireUnauthorized() {
-    if (weekAuthorized) {
-      throw const ConflictException(
+  void _requireEditableWeek() {
+    if (_weekFrozen) {
+      throw ConflictException(
         code: 'week_closed',
-        message: 'La semana ya está autorizada: no se puede cambiar.',
+        message: weekAuthorized
+            ? 'La semana ya está autorizada: no se puede cambiar.'
+            : 'El cierre de esa semana está con Dirección. Para cambiar algo, '
+                'tiene que devolverlo.',
       );
     }
   }
@@ -396,7 +399,7 @@ class DemoTeam {
 
   List<PendingItem> pendingDeliverables() => [
         for (final d in allDeliverables())
-          if (d.status == DeliverableStatus.inReview)
+          if (d.status == DeliverableStatus.inReview && !_weekFrozen)
             PendingItem(
               type: PendingType.deliverable,
               id: d.id,
@@ -431,7 +434,7 @@ class DemoTeam {
     DateTime? deliveredOn,
     String? note,
   }) {
-    _requireUnauthorized();
+    _requireEditableWeek();
     for (final list in _deliverables.values) {
       final index = list.indexWhere((d) => d.id == id);
       if (index < 0) continue;
@@ -662,13 +665,11 @@ class _Profile {
     required this.shareRate,
     required this.minimumPercent,
     required this.kpis,
-    this.monthCommission,
   });
 
   final double shareRate;
   final int minimumPercent;
   final List<_Kpi> kpis;
-  final String? monthCommission;
 }
 
 const _percent = KpiUnit.percent;
@@ -697,7 +698,7 @@ const _profiles = <String, _Profile>{
         'Caja diaria contra cobros y pedidos; cierre validado por Jime', 100, 100, 0.20, unit: _percent),
     _Kpi('Informe semanal de almacén y ventas', 'Con inventario, pedidos, despachos, B2B', 1, 1, 0.10),
   ]),
-  '4': _Profile(shareRate: 0.20, minimumPercent: 80, monthCommission: '412.50', kpis: [
+  '4': _Profile(shareRate: 0.20, minimumPercent: 80, kpis: [
     _Kpi('Nuevos compradores contactados', 'Contactos prospectados, no duplicados', 27, 25, 0.30),
     _Kpi('Seguimientos comerciales', 'Clientes contactados después del primer interés', 14, 13, 0.20),
     _Kpi('Pedidos propios efectivamente pagados', 'Ventas personales cobradas, sin duplicación', 6, 4, 0.40,
@@ -705,7 +706,7 @@ const _profiles = <String, _Profile>{
     _Kpi('Registro semanal de ventas', 'Pedidos, clientes y evidencias de cobro', 1, 1, 0.10,
         evidence: _Seed.registroInReview),
   ]),
-  '5': _Profile(shareRate: 0.20, minimumPercent: 90, monthCommission: '595.00', kpis: [
+  '5': _Profile(shareRate: 0.20, minimumPercent: 90, kpis: [
     _Kpi('Nuevos comercios contactados', 'Contactos efectivos de clientes mayoristas', 11, 11, 0.25),
     _Kpi('Seguimientos comerciales', 'Seguimiento verificable de prospectos', 11, 11, 0.20),
     _Kpi('Cotizaciones enviadas', 'Con condiciones y precio autorizado', 5, 5, 0.20),

@@ -61,9 +61,12 @@ final controlDeliverablesProvider =
   return ref.watch(reviewRepositoryProvider).deliverables();
 });
 
-final memberWeekProvider = FutureProvider.autoDispose.family<MyWeek, String>((ref, id) {
+typedef MemberWeekKey = ({String id, int? week});
+
+final memberWeekProvider =
+    FutureProvider.autoDispose.family<MyWeek, MemberWeekKey>((ref, key) {
   _watchSession(ref);
-  return ref.watch(reviewRepositoryProvider).memberWeek(id);
+  return ref.watch(reviewRepositoryProvider).memberWeek(key.id, weekNumber: key.week);
 });
 
 typedef ControlOrdersQuery = ({String search, int page});
@@ -82,19 +85,23 @@ final controlOrderProvider =
   return ref.watch(reviewRepositoryProvider).order(id);
 });
 
-final complianceProvider = FutureProvider.autoDispose<List<ComplianceRow>>((ref) {
+// Con `null`, el servidor abre la semana que toca.
+final complianceProvider =
+    FutureProvider.autoDispose.family<ComplianceWeek, int?>((ref, week) {
   _watchSession(ref);
-  return ref.watch(payoutsRepositoryProvider).compliance();
+  return ref.watch(payoutsRepositoryProvider).compliance(weekNumber: week);
 });
 
-final weeklyClosingProvider = FutureProvider.autoDispose<WeeklyClosing>((ref) {
+final weeklyClosingProvider =
+    FutureProvider.autoDispose.family<WeeklyClosing, int?>((ref, week) {
   _watchSession(ref);
-  return ref.watch(payoutsRepositoryProvider).weeklyClosing();
+  return ref.watch(payoutsRepositoryProvider).weeklyClosing(weekNumber: week);
 });
 
-final weekBonusProvider = FutureProvider.autoDispose<WeekBonus>((ref) {
+final weekBonusProvider =
+    FutureProvider.autoDispose.family<WeekBonus, int?>((ref, week) {
   _watchSession(ref);
-  return ref.watch(payoutsRepositoryProvider).bonus();
+  return ref.watch(payoutsRepositoryProvider).bonus(weekNumber: week);
 });
 
 /// [data] es el mes que se muestra; [previous] es el anterior solo si tuvo algo

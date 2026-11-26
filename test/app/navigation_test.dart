@@ -140,7 +140,7 @@ void main() {
       final tokens = signedInTokens('ALI-04');
       await tester.pumpWidget(testApp(tokens: tokens));
       await tester.pumpAndSettle();
-      expect(find.text('Bs 412,50'), findsOneWidget);
+      expect(find.text('Mariela Quispe · QR'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Cerrar sesión'));
       await tester.pumpAndSettle();
@@ -157,7 +157,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hola, Isaí'), findsOneWidget);
-      expect(find.text('Bs 412,50'), findsNothing);
+      expect(find.text('Mariela Quispe · QR'), findsNothing);
       expect(barLabels(tester), member('Caja'));
     });
 

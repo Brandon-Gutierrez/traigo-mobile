@@ -57,6 +57,34 @@ class ComplianceRow {
       : (minimumPercent - scorePercent!).clamp(0, 100);
 }
 
+/// El cumplimiento de todo el equipo en una semana.
+class ComplianceWeek {
+  const ComplianceWeek({
+    required this.weekNumber,
+    required this.week,
+    required this.currentWeek,
+    required this.rows,
+  });
+
+  factory ComplianceWeek.fromJson(Json json) {
+    final meta = json.obj('meta');
+    final week = meta.obj('week');
+    return ComplianceWeek(
+      weekNumber: week.integer('number'),
+      week: BonusWeek.fromJson(week),
+      currentWeek: meta.integer('current_week'),
+      rows: json.list('data').map(ComplianceRow.fromJson).toList(),
+    );
+  }
+
+  final int weekNumber;
+  final BonusWeek week;
+
+  /// La semana en curso: hasta ahí se puede avanzar.
+  final int currentWeek;
+  final List<ComplianceRow> rows;
+}
+
 enum WeekClosingStatus {
   open('open', 'Abierto'),
   sent('sent', 'Enviado a Dirección'),
@@ -104,6 +132,8 @@ class PendingMember {
 class WeeklyClosing {
   const WeeklyClosing({
     required this.weekNumber,
+    required this.currentWeek,
+    required this.sendableFrom,
     required this.week,
     required this.status,
     required this.paymentsReconciled,
@@ -120,6 +150,8 @@ class WeeklyClosing {
     final checks = json.obj('checks');
     return WeeklyClosing(
       weekNumber: week.integer('number'),
+      currentWeek: json.integer('current_week'),
+      sendableFrom: json.date('sendable_from'),
       week: BonusWeek.fromJson(week),
       status: WeekClosingStatus.fromApi(json.str('status')),
       paymentsReconciled: ClosingCheck.fromJson(checks.obj('payments_reconciled')),
@@ -133,6 +165,10 @@ class WeeklyClosing {
   }
 
   final int weekNumber;
+  final int currentWeek;
+
+  /// Desde este día se puede enviar: cuando la semana ya terminó.
+  final DateTime sendableFrom;
   final BonusWeek week;
   final WeekClosingStatus status;
   final ClosingCheck paymentsReconciled;
@@ -187,6 +223,7 @@ class BonusRow {
 class WeekBonus {
   const WeekBonus({
     required this.weekNumber,
+    required this.currentWeek,
     required this.week,
     required this.status,
     required this.collected,
@@ -203,6 +240,7 @@ class WeekBonus {
     final week = json.obj('week');
     return WeekBonus(
       weekNumber: week.integer('number'),
+      currentWeek: json.integer('current_week'),
       week: BonusWeek.fromJson(week),
       status: WeekClosingStatus.fromApi(json.str('status')),
       collected: json.money('collected'),
@@ -217,6 +255,7 @@ class WeekBonus {
   }
 
   final int weekNumber;
+  final int currentWeek;
   final BonusWeek week;
   final WeekClosingStatus status;
   final Money collected;
@@ -314,7 +353,8 @@ class MonthCommissions {
 }
 
 abstract interface class PayoutsRepository {
-  Future<List<ComplianceRow>> compliance({int? weekNumber});
+  /// Sin [weekNumber], la semana que falta cerrar.
+  Future<ComplianceWeek> compliance({int? weekNumber});
 
   Future<WeeklyClosing> weeklyClosing({int? weekNumber});
 

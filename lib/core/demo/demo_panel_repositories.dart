@@ -121,12 +121,12 @@ class DemoPayoutsRepository extends _Panel implements PayoutsRepository {
   const DemoPayoutsRepository(super.backend, super.latency);
 
   @override
-  Future<List<ComplianceRow>> compliance({int? weekNumber}) =>
-      either(() => backend.team.compliance());
+  Future<ComplianceWeek> compliance({int? weekNumber}) =>
+      either(() => backend.control.compliance(weekNumber: weekNumber));
 
   @override
   Future<WeeklyClosing> weeklyClosing({int? weekNumber}) =>
-      control(() => backend.control.weeklyClosing());
+      control(() => backend.control.weeklyClosing(weekNumber: weekNumber));
 
   @override
   Future<WeeklyClosing> sendWeeklyClosing(
@@ -143,7 +143,8 @@ class DemoPayoutsRepository extends _Panel implements PayoutsRepository {
           ));
 
   @override
-  Future<WeekBonus> bonus({int? weekNumber}) => either(() => backend.control.bonus());
+  Future<WeekBonus> bonus({int? weekNumber}) =>
+      either(() => backend.control.bonus(weekNumber: weekNumber));
 
   @override
   Future<WeekBonus> markBonusPaid(int weekNumber, String memberId) =>

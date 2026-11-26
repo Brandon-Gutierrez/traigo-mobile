@@ -22,7 +22,10 @@ import 'panel_widgets.dart';
 /// El bono de la semana: el nivel alcanzado y la parte de cada uno. Cuando
 /// Dirección lo autoriza, Jime marca cada pago.
 class BonusScreen extends StatelessWidget {
-  const BonusScreen({super.key});
+  const BonusScreen({super.key, this.weekNumber});
+
+  /// `null`: la semana que falta pagar.
+  final int? weekNumber;
 
   static String _statusLine(WeekClosingStatus status) => switch (status) {
         WeekClosingStatus.open => 'calculados, sin enviar',
@@ -35,7 +38,7 @@ class BonusScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AsyncPage(
-      provider: weekBonusProvider,
+      provider: weekBonusProvider(weekNumber),
       builder: (context, ref, bonus) {
         final role = ref.watch(sessionControllerProvider).value?.member.role;
         final percent = bonus.achievementPercent;
@@ -45,6 +48,13 @@ class BonusScreen extends StatelessWidget {
         return [
           PageTitle('Bonos de la semana',
               subtitle: '${bonus.week.label} · ${_statusLine(bonus.status)}'),
+          WeekNav(
+            shown: bonus.weekNumber,
+            current: bonus.currentWeek,
+            chosen: weekNumber,
+            pendingLabel: 'Ir a la que falta pagar',
+            onShow: (week) => context.go(AppRoutes.bonusesWeek(week)),
+          ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,

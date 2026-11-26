@@ -165,7 +165,10 @@ void main() {
     test('cumplimiento: cuántos puntos faltan', () async {
       h.adapter.reply(200, complianceResponse);
 
-      final rows = await PayoutsApiRepository(h.api).compliance();
+      final week = await PayoutsApiRepository(h.api).compliance();
+      final rows = week.rows;
+
+      expect((week.weekNumber, week.currentWeek), (1, 2));
 
       expect(rows.first.compliance, Compliance.pending);
       expect(rows.first.deliverablesOnTime, 2);
@@ -181,6 +184,7 @@ void main() {
 
       final closing = await repo.weeklyClosing(weekNumber: 1);
       expect(closing.direction.ok, isFalse);
+      expect(closing.sendableFrom, DateTime(2026, 12, 7));
       final waiting = closing.pendingMembers.single;
       expect(waiting.name, 'Sistemas 1');
       expect(waiting.pendingReason, '2 de 4 entregas validadas');

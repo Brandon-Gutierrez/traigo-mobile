@@ -67,8 +67,13 @@ celular físico usa la IP de tu PC en la red local (en debug se permite `http`;
 en producción debe ser `https`).
 
 Lo que debe ofrecer el backend (app y tienda web) está en
-[docs/api-contract.md](docs/api-contract.md). La base de datos correspondiente
-está en el repositorio del backend, rama `feature/bd-segun-excel`.
+[docs/api-contract.md](docs/api-contract.md). El backend se programa por fases
+en su repositorio, rama `feature/endpoints-mobile` (su `README.md` dice cómo
+levantarlo). Por ahora tiene **todo lo del equipo, el almacén y el panel de
+Jime** (pendientes y validaciones, devoluciones y duplicados, cumplimiento,
+cierre semanal, bono y comisiones). Faltan «Más» → Precios, Auditoría, reportes
+y Accesos, y **autorizar** desde Dirección: contra él, un cierre enviado queda
+esperando.
 
 El documento se **genera**: se edita `tool/api-contract.template.md` y se corre
 
@@ -102,7 +107,8 @@ distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
 
 - Al registrar una venta, quien vende pone la **fecha y hora de entrega
   acordadas** con el cliente. De ahí sale si un despacho va atrasado. Los
-  pedidos de la web no la tienen.
+  pedidos de la web no la tienen. Un QR que Jime confirma después de esa hora
+  no es atraso de almacén.
 - Una venta **en efectivo** nace «Pagado» para que almacén la entregue. Jime la
   confirma al validar la caja; recién entonces cuentan el bono y la comisión.
   Quien vende ya no la puede cancelar.
@@ -110,6 +116,8 @@ distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
   diciembre. Isaí escribe lo que de verdad recibió (no se rellena solo) y puede
   enviar los días atrasados y los que Jime observó. Una diferencia exige
   explicación.
+- **Cada cobro queda en un solo cierre.** El que llega después de enviar la caja
+  de su día pasa al siguiente cierre que se envíe.
 - **Despachos y stock** se abren desde la sección «Almacén» del Inicio de Isaí.
 - Los **ajustes** de stock llevan motivo. En un **conteo** no se muestra lo que
   dice el sistema hasta guardarlo; la diferencia la ajusta Isaí con su motivo y
@@ -124,11 +132,18 @@ distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
   los valores reales aunque nadie haya subido evidencia.
 - **Cierre semanal**: «Cobros conciliados» y «KPI con evidencia» los calcula el
   sistema; los duplicados los confirma Jime. Quien siga pendiente se cierra como
-  «no cumple» con un motivo.
+  «no cumple» con un motivo. Se envía cuando la semana termina (la demo, fija en
+  el domingo 6, deja enviarla ese día).
+- **Semanas**: Cumplimiento y Cierre abren la terminada más antigua sin enviar,
+  y Bonos la que falta pagar; si no hay, la actual. Se puede ir a la anterior o
+  a la siguiente.
+- Mientras el cierre está con Dirección, nadie cambia valores, evidencia ni
+  entregas de esa semana; para corregir, Dirección lo devuelve.
 - Con la autorización de Dirección la semana queda cerrada y Jime marca cada
   pago del bono.
 - **Comisiones**: se envían cuando termina el mes (las de diciembre, desde el 1
-  de enero). Mientras tanto se pueden ver.
+  de enero). Mientras tanto se pueden ver. Cuentan en el mes en que llegó el
+  dinero; si ese mes ya se envió, pasan a la siguiente liquidación.
 - **Precios**: Jime propone y Dirección aprueba. Si se aprueba el % de un
   producto, lo toman las ventas sin % que no se liquidaron.
 - **«Más» → Pedidos**: devoluciones y ventas duplicadas.
@@ -229,9 +244,8 @@ Google Fonts:
 
 - **Decisiones del negocio**: están en la sección 17 de
   [docs/api-contract.md](docs/api-contract.md) (confirmar los mínimos por mayor
-  de cada producto, el código del segundo paso, las comisiones, qué pasa con los
-  cobros que llegan después de enviar la caja y si un pago confirmado tarde
-  cuenta como atraso de almacén, entre otras).
+  de cada producto, el código del segundo paso y las comisiones, entre
+  otras).
 - **Mockups**: todavía mencionan el monto mínimo de Bs 1.000 para el precio por
   mayor, que ya no aplica (la app, la demo y la base de datos no lo usan).
 - **Fotos de productos**: mientras no haya, la app dibuja una ilustración según
@@ -239,7 +253,8 @@ Google Fonts:
 - **Mockups del panel**: no muestran el cierre a mano de quien sigue pendiente,
   la pantalla de Pedidos ni la de Accesos, que la app sí tiene.
 - **Excel**: lo genera el backend; en la demo solo se avisa.
-- **Backend real**: la app aún no se probó contra Laravel.
+- **Backend real**: la capa de datos se probó contra Laravel en cada fase del
+  backend; falta usar la app en un emulador o celular conectada a él.
 - **Celular real**: se revisó con pruebas automáticas y capturas, no en un
   dispositivo. Falta probar ahí la cámara, la galería y compartir el Excel.
 - **Enlaces de evidencia**: se pueden copiar, pero la app no los abre (haría

@@ -82,13 +82,14 @@ void main() {
     expect(find.text('Cumples tu mínimo'), findsOneWidget);
 
     expect(find.text('ESTE MES'), findsOneWidget);
-    expect(find.text('Bs 412,50'), findsOneWidget);
+    expect(find.text('Comisión del mes'), findsOneWidget);
     expect(find.text('Se paga una vez al mes. Fecha de pago: por definir.'), findsOneWidget);
 
     expect(find.text('VENTAS DE HOY'), findsOneWidget);
     expect(find.text('Tomatodos de Messi × 2'), findsOneWidget);
     expect(find.text('Mariela Quispe · QR'), findsOneWidget);
-    expect(find.text('[% por definir]'), findsNWidgets(2));
+    // La comisión del mes (sin % todavía) y la de cada venta de hoy.
+    expect(find.text('[% por definir]'), findsNWidgets(3));
 
     expect(find.text('CAJA DE HOY'), findsNothing);
     expect(find.text('EVIDENCIA PENDIENTE'), findsNothing);
@@ -100,7 +101,7 @@ void main() {
 
     expect(find.text('85 %'), findsOneWidget);
     expect(find.text('Todavía no llegas a tu mínimo'), findsOneWidget);
-    expect(find.text('Bs 595,00'), findsOneWidget);
+    expect(find.text('Comisión del mes'), findsOneWidget);
   });
 
   testWidgets('Isaí tiene el cierre de caja como acción y no ve comisiones',

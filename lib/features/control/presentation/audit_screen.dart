@@ -72,7 +72,7 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
   Widget build(BuildContext context) {
     final today = ref.watch(todayProvider)();
     // El bono lo ven Jime y Dirección: de ahí salen el número y las fechas.
-    final week = ref.watch(weekBonusProvider).value;
+    final week = ref.watch(weekBonusProvider(null)).value;
     // El mismo mes que muestra Comisiones: el que toca liquidar.
     final month = ref.watch(commissionsViewProvider(null)).value?.data.month ??
         monthKey(today);

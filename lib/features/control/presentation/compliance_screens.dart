@@ -3,7 +3,6 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
@@ -20,7 +19,10 @@ import '../domain/payouts.dart';
 import 'panel_widgets.dart';
 
 class ComplianceScreen extends StatelessWidget {
-  const ComplianceScreen({super.key});
+  const ComplianceScreen({super.key, this.weekNumber});
+
+  /// `null`: la semana que falta cerrar.
+  final int? weekNumber;
 
   static String _explanation(ComplianceRow row) {
     final registered = '${row.indicatorsLoaded} de ${row.indicatorsTotal} KPI cargados';
@@ -43,24 +45,27 @@ class ComplianceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AsyncPage(
-      provider: complianceProvider,
-      header: [
-        BackLink('Resumen', onTap: () => context.go(AppRoutes.summary)),
-        Consumer(
-          builder: (context, ref, _) => PageTitle(
-            'Cumplimiento',
-            subtitle: ref.watch(controlSummaryProvider).value?.week.label,
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
-      builder: (context, ref, rows) {
+      provider: complianceProvider(weekNumber),
+      header: [BackLink('Resumen', onTap: () => context.go(AppRoutes.summary))],
+      builder: (context, ref, data) {
         final canLoad =
             ref.watch(sessionControllerProvider).value?.member.role == MemberRole.control;
         return [
-          for (final row in rows)
+          PageTitle('Cumplimiento', subtitle: data.week.label),
+          WeekNav(
+            shown: data.weekNumber,
+            current: data.currentWeek,
+            chosen: weekNumber,
+            onShow: (week) => context.go(AppRoutes.complianceWeek(week)),
+          ),
+          const SizedBox(height: 8),
+          for (final row in data.rows)
             InkWell(
-              onTap: canLoad ? () => context.go(AppRoutes.complianceMember(row.id)) : null,
+              onTap: canLoad
+                  ? () => context.go(
+                        AppRoutes.complianceMember(row.id, weekNumber: data.weekNumber),
+                      )
+                  : null,
               child: _MemberRow(row, open: canLoad),
             ),
           const SizedBox(height: 8),
@@ -135,20 +140,27 @@ class _MemberRow extends StatelessWidget {
 
 /// Los indicadores de una persona: al tocar uno se carga su valor real.
 class MemberWeekScreen extends StatelessWidget {
-  const MemberWeekScreen({super.key, required this.memberId});
+  const MemberWeekScreen({super.key, required this.memberId, this.weekNumber});
 
   final String memberId;
+  final int? weekNumber;
 
   @override
   Widget build(BuildContext context) {
     return AsyncPage(
-      provider: memberWeekProvider(memberId),
-      header: [BackLink('Cumplimiento', onTap: () => context.go(AppRoutes.compliance))],
+      provider: memberWeekProvider((id: memberId, week: weekNumber)),
+      header: [
+        BackLink(
+          'Cumplimiento',
+          onTap: () => context.go(AppRoutes.complianceWeek(weekNumber)),
+        ),
+      ],
       builder: (context, ref, week) {
         final name = ref
-                .watch(complianceProvider)
+                .watch(complianceProvider(weekNumber))
                 .value
-                ?.where((r) => r.id == memberId)
+                ?.rows
+                .where((r) => r.id == memberId)
                 .firstOrNull
                 ?.name ??
             'Indicadores';
@@ -159,7 +171,11 @@ class MemberWeekScreen extends StatelessWidget {
           for (final item in week.indicators)
             OpenRow(
               onTap: () => context.go(
-                AppRoutes.complianceIndicator(memberId, item.indicator.id),
+                AppRoutes.complianceIndicator(
+                  memberId,
+                  item.indicator.id,
+                  weekNumber: weekNumber,
+                ),
               ),
               children: [
                 Text(item.indicator.name,

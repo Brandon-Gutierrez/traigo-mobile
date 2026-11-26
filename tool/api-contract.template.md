@@ -15,45 +15,27 @@ reglas. Sale de los Excel de la campaña (precios, metas, KPI, bono y la hoja
 
 ## 0. Antes de empezar
 
-### La base de datos
+### El backend
 
-Está en el repositorio del backend, rama `feature/bd-segun-excel` (carpeta
-`database/`): 16 migraciones para **PostgreSQL 13 o superior** y los datos de
-arranque (62 productos, equipo, campaña de 7 semanas, 33 indicadores, sus metas
-semanales, las 8 entregas de Sistemas y la configuración).
+En el repositorio del backend, rama `feature/endpoints-mobile`. Ya están la
+**base de la API y el ingreso** (secciones 1, 2 y 4), el **Inicio, el equipo y
+«Mi semana»** (sección 5), el **catálogo y las ventas** (sección 6), el
+**almacén** (sección 7) y el **panel de Jime** (secciones 8 y 9); «Más» y
+Dirección (10 y 11) van en la fase siguiente. Su `README.md` dice cómo instalarlo, dar el PIN y el correo de
+cada persona (`php artisan traigo:pin` y `traigo:correo`) y correr las pruebas.
 
-```powershell
-composer install
-copy .env.example .env      # completar DB_* y poner APP_LOCALE=es
-php artisan key:generate
-php artisan migrate --seed
-```
+La base (`database/`) son las migraciones para **PostgreSQL 13 o superior** y los
+datos de arranque: 62 productos, equipo, campaña de 7 semanas, 33 indicadores,
+sus metas semanales, las 8 entregas de Sistemas y la configuración.
 
-Solo en una PC de desarrollo, para poder ingresar con el PIN `1234` como en la
-demo de la app (necesita `APP_ENV=local`):
+Ya resuelto en el código: zona horaria de Bolivia (aplicación y conexión),
+Sanctum con ids UUID, `traigo.user_id` en cada petición para el historial,
+errores en este formato (las reglas de la base llegan como `409` en español) e
+`Idempotency-Key`.
 
-```powershell
-php artisan db:seed --class=LocalPinSeeder
-```
-
-### Ajustes necesarios en el código (no se hicieron: solo se cambió `database/`)
-
-1. **Zona horaria**: `config/app.php` → `'timezone' => 'America/La_Paz'`.
-2. **Modelo `User`**: `$primaryKey = 'id_user'`, trait `HasUuids`,
-   `$keyType = 'string'`, `$incrementing = false`, ocultar `password`,
-   `pin_hash` y `remember_token`. Las demás tablas siguen el mismo estilo
-   (`id_<tabla>` en UUID).
-3. **Sanctum**: `php artisan install:api` y, **antes de migrar**, cambiar en la
-   migración publicada `morphs('tokenable')` por `uuidMorphs('tokenable')`.
-4. **Quién actúa**: un middleware que al empezar cada petición con sesión ejecute
-   `select set_config('traigo.user_id', ?, false)` con el UUID de la persona y lo
-   limpie al terminar. El historial (`audit_logs`) lo usa.
-5. **Errores de la base**: la base rechaza lo que rompe una regla. Conviene
-   revisar la regla antes y, si igual llega, traducir `23514` (check) y `23505`
-   (único) a `409`/`422` con un mensaje en español. Los mensajes de los
-   disparadores ya vienen en español.
-6. **Archivos**: las tablas guardan `public_id` y `url` (Cloudinary, como el
-   diseño original). Si se usa disco propio, devolver URLs firmadas.
+**Archivos**: se guardan en el servidor (`storage/app/private`, que tiene que
+entrar en el respaldo) y salen con un enlace firmado que vence; `public_id` y
+`url` guardan la ruta (decidido en la fase 2, en vez de Cloudinary).
 
 ## 1. Convenciones
 
@@ -66,6 +48,7 @@ php artisan db:seed --class=LocalPinSeeder
 | IDs | Texto (UUID). Los ejemplos usan ids cortos para que se lean mejor |
 | Dinero | **Texto con 2 decimales y punto**: `"412.50"`. Nunca `number` |
 | Tasas y pesos | Texto decimal: `"0.20"` = 20 % |
+| `commission_pct` | Porcentaje de 0 a 100: `"5.00"` = 5 % |
 | % ya calculados | Entero redondeado **hacia abajo**: `83` |
 | Fechas | `2026-12-06T11:09:00-04:00`; solo fecha: `2026-12-01` |
 | «Hoy», «semana», «mes» | Días calendario de Bolivia (`America/La_Paz`) |
@@ -99,7 +82,9 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `two_factor_invalid`, `two_factor_expired` | 422 | Segundo paso |
 | `price_changed` | 409 | El total calculado no es el que vio la persona (`data.total`) |
 | `idempotency_conflict` | 409 | La misma `Idempotency-Key` llegó con otros datos |
-| `insufficient_stock` | 409 | No alcanza (`data.product_id`, `data.available`) |
+| `request_in_progress` | 409 | El primer envío con esa clave todavía se está procesando |
+| `two_factor_unavailable` | 409 | Esa cuenta no tiene correo para recibir el código |
+| `insufficient_stock` | 409 | No alcanza (`data.product_id`, `data.available`). Al entregar: lo apartado no alcanza (`data.product_id`) |
 | `product_unavailable` | 409 | Producto desactivado |
 | `not_cancellable` | 409 | El pedido ya no se puede cancelar |
 | `reference_duplicated` | 409 | La referencia del pago ya se usó |
@@ -116,10 +101,11 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `not_ready_to_pay` | 409 | Todavía no lo autorizó Dirección |
 | `evidence_validated` | 409 | Jime ya validó ese indicador: no admite más evidencia |
 | `deliverable_validated` | 409 | Jime ya validó esa entrega: no se vuelve a enviar |
-| `week_closed` | 409 | La semana ya está autorizada o Jime cerró la de esa persona |
+| `week_closed` | 409 | El cierre de la semana está con Dirección o ya se autorizó, o Jime cerró la de esa persona |
+| `week_not_ended` | 409 | El cierre semanal se envía cuando la semana termina |
 | `promised_in_past` | 422 | La entrega acordada ya pasó (con 30 minutos de margen) |
 | `invalid_status` | 409 | El pedido ya no está en el estado que pide la acción |
-| `closing_already_sent` | 409 | El cierre de caja de ese día, o el de la semana, ya se envió |
+| `closing_already_sent` | 409 | El cierre de caja de ese día, el de la semana o la liquidación del mes ya se enviaron |
 | `note_required` | 422 | Un ajuste de stock sin motivo |
 | `below_reserved` | 409 | El stock quedaría por debajo de lo reservado |
 | `already_adjusted` | 409 | Esa diferencia de conteo ya se corrigió |
@@ -139,7 +125,8 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `management` | Dirección | `/management/*` y **leer** `/control/summary`, `bonus`, `compliance`, `commissions`, `audit`, `reports` y `products/{id}` |
 | `customer` | Cliente web | Solo `/store/*` |
 
-«Lo del equipo»: `/home`, `/team/week`, `/me/*` y leer `/catalog`.
+«Lo del equipo»: `/home`, `/team/week`, `/me/*` y leer `/catalog`. El catálogo
+también lo leen `control` y `management` («Precios autorizados» y pedidos).
 
 - Cada persona ve **solo lo suyo** (sus ventas, su KPI, su comisión). Pedir algo
   ajeno responde `404`.
@@ -164,9 +151,9 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `GET /me/week` | equipo | `kpi_weekly_results`, `kpi_evidence`, `system_deliverables` |
 | `POST /me/kpi-results/{id}/evidence` | equipo (lo suyo) | `kpi_evidence` |
 | `POST /me/deliverables/{id}/submission` | systems (lo suyo) | `system_deliverables` |
-| `GET /catalog` | equipo | `products`, `inventory` |
-| `GET /catalog/categories` | equipo | `categories` |
-| `GET /catalog/{id}` | equipo | `products`, `product_images` |
+| `GET /catalog` | equipo, control, management | `products`, `inventory` |
+| `GET /catalog/categories` | equipo, control, management | `categories` |
+| `GET /catalog/{id}` | equipo, control, management | `products`, `product_images` |
 | `GET /orders` | seller, wholesale | `orders` |
 | `GET /orders/{id}` | seller, wholesale | `orders`, `order_items`, `payments`, `commissions` |
 | `POST /orders` | seller, wholesale | idem + `inventory` |
@@ -225,8 +212,11 @@ Jime y Dirección reciben un segundo paso, **sin token todavía**:
 
 - `401` con `"Código o PIN incorrectos."` si falla cualquiera de los dos o la
   cuenta está desactivada.
-- `pin_hash` con bcrypt. **Obligatorio** limitar intentos (5 por minuto por
-  código e IP) y bloquear con `failed_login_attempts` y `locked_until`.
+- `pin_hash` con bcrypt. Intentos: 5 por minuto por código e IP (20 por IP).
+  Con **5 PIN fallidos seguidos** la cuenta se bloquea 15 minutos: `429` con
+  `Retry-After`, también con el PIN correcto.
+- La sesión no vence sola (el servidor puede ponerle plazo con
+  `SANCTUM_EXPIRATION`); se cierra al salir, al cambiar el PIN o al revocarla.
 
 `POST /auth/two-factor` recibe `{ "challenge_id", "code", "device_name" }`:
 
@@ -236,11 +226,15 @@ Errores:
 
 {{invalidSecondStepError}}
 
-El código vence a los 5 minutos, sirve una vez, admite 5 intentos, se guarda
-hasheado (`code_hash`) y **nunca** viaja en una respuesta.
+El código llega **por correo** a Jime y Dirección. Vence a los 5 minutos, sirve
+una vez, admite 5 intentos, se guarda hasheado (`code_hash`) y **nunca** viaja
+en una respuesta. Se pueden pedir 5 códigos cada 15 minutos (`429`). Si la
+cuenta no tiene correo, `409 two_factor_unavailable`; si el correo no sale,
+`503` y no queda ningún código.
 
 `POST /auth/two-factor/resend` con `{ "challenge_id" }`: crea otro y anula el
-anterior; antes de `resend_at`, `429`.
+anterior; antes de `resend_at`, `429`. Sirve aunque el código haya vencido, hasta
+15 minutos después; luego, `422 two_factor_expired` y se vuelve a ingresar.
 
 {{resendResponse}}
 
@@ -256,7 +250,8 @@ Antes de la campaña, la primera; después, la última.
 
 ### `GET /home`
 
-Solo datos de quien pregunta (`404` para `control` y `management`).
+Solo datos de quien pregunta. `/home`, `/team/week` y `/me/*` son del equipo:
+`control` y `management` reciben `404`.
 
 {{sellerHomeResponse}}
 
@@ -278,8 +273,8 @@ Sistemas recibe sus entregas:
 | `kpi.indicators[].id` | `id_kpi_weekly_result` (con este id se sube evidencia) |
 | `kpi.indicators[].evidence_status` | La evidencia más reciente; sin filas, `missing` |
 | `kpi.deliverables` | `approved` = entregas `on_time`; solo Sistemas |
-| `month_commission` | Suma de las comisiones `earned` y ajustes del mes. `pay_note` = ajuste `commission_pay_note` |
-| `today_sales` | Ventas propias de hoy, la más nueva primero |
+| `month_commission` | Solo quienes venden: comisiones `earned` y ajustes del mes. `amount` es `null` si alguna no tiene % (la app muestra «[% por definir]»). `pay_note` = ajuste `commission_pay_note` |
+| `today_sales` | Ventas propias de hoy (sin las canceladas ni vencidas), la más nueva primero |
 | `cash_today` | Resumen de `GET /cash/today`; `pending_days` = cuántos días anteriores faltan |
 
 ### `GET /team/week`
@@ -314,7 +309,10 @@ cancelado, vencido ni devuelto; solo quienes venden) y `note` (opcional, hasta
 500 caracteres). No se adjuntan otros archivos: un informe se sube como enlace o
 foto (decisión del 24/11/2026).
 
-- Solo el indicador propio; si no, `404`.
+- Con `Idempotency-Key` UUID (`422` si falta); se guarda en
+  `kpi_evidence.client_uuid`.
+- Solo el indicador propio, de una semana que ya empezó; si no, `404`. El pedido
+  también tiene que ser propio (`404`).
 - Si Jime ya validó el indicador (la evidencia más reciente está `validated`),
   `409 evidence_validated`. Para que se pueda volver a subir, Jime la marca como
   observada.
@@ -328,8 +326,11 @@ foto (decisión del 24/11/2026).
 
 ### `POST /me/deliverables/{id}/submission`
 
-`multipart`: `delivered_on` (fecha real) y `file` (foto) o `url` (enlace). No
-lleva nota: la base no la guarda y el Excel solo pide la evidencia o el enlace.
+`multipart`: `delivered_on` (fecha real, `AAAA-MM-DD`) y `file` (foto JPG o PNG
+de hasta 5 MB) o `url` (enlace); si llegan los dos, vale la foto. Con
+`Idempotency-Key` UUID. Solo `systems` y solo la propia (`404`). Responde `200`
+con la entrega. No lleva nota: la base no la guarda y el Excel solo pide la
+evidencia o el enlace.
 
 - La **fecha real la pone quien entrega** (la app propone hoy y deja elegir una
   anterior; no puede ser futura) y Jime la comprueba al validar. Con ella la base
@@ -352,9 +353,10 @@ Productos activos, por nombre, 30 por página. `search` busca en nombre y códig
 {{catalogResponse}}
 
 `available = stock − reserved`. `commission_pct: null` = **por definir** (la app
-muestra «[% por definir]»). El costo no viaja nunca aquí.
+muestra «[% por definir]»); solo lo reciben quienes venden, `control` y
+`management` (a los demás les llega `null`). El costo no viaja nunca aquí.
 
-`GET /catalog/categories`:
+`GET /catalog/categories`: solo las que tienen productos activos, por nombre.
 
 {{categoriesResponse}}
 
@@ -375,7 +377,12 @@ sin `status`, todas.
 {{orderDetailResponse}}
 
 `lines[]` guarda la copia de la venta; `category` e `image_url` son las del
-producto hoy (solo para mostrarlo).
+producto hoy (solo para mostrarlo). `items_label` es la primera línea y, si hay
+más, «y N productos más».
+
+`payment` es `null` mientras no haya comprobante (el cobro está `pending`) y en
+los pedidos cancelados o vencidos. `proof_url` es un enlace **firmado que vence
+a los 60 minutos**: se abre sin sesión y no conviene guardarlo.
 
 `can_cancel`: solo en `pending_payment` o `payment_review`. `can_upload_proof`:
 pago `qr` o `transfer` en `pending_payment` o `payment_review` (en revisión, subir
@@ -385,6 +392,9 @@ qué. La línea de tiempo sale de `created_at`, `paid_at`, `ready_at` y
 `delivered_at`.
 
 ### `POST /orders` (con `Idempotency-Key`)
+
+La clave es **obligatoria y es un UUID** (`422` si falta); también se guarda en
+`orders.client_uuid`.
 
 La app manda productos y cantidades; **no manda precios**. `expected_total` es lo
 que vio la persona.
@@ -426,9 +436,13 @@ deja `cancelled`. `409 not_cancellable` si ya está pagado.
 
 ### `POST /orders/{id}/payment-proof`
 
-`multipart`: `file` y `reference`. Crea o reemplaza el `payments` en `submitted`
-por el total y pasa el pedido a `payment_review`. Referencia repetida:
-`409 reference_duplicated` (la base lo garantiza). Devuelve el detalle.
+`multipart`: `file` (JPG, PNG o PDF de hasta 5 MB) y `reference` (opcional),
+con `Idempotency-Key` UUID. Crea o reemplaza el `payments` en `submitted` por el
+total y pasa el pedido a `payment_review`; si el anterior estaba rechazado,
+queda como un cobro nuevo. Referencia repetida **en la misma forma de pago**:
+`409 reference_duplicated` (la base lo garantiza); al cancelar o rechazar un
+cobro, su referencia queda libre. En efectivo o ya cobrado:
+`409 already_reviewed`. Devuelve el detalle.
 
 ## 7. Almacén (rol `warehouse`)
 
@@ -436,9 +450,13 @@ por el total y pasa el pedido a `payment_review`. Referencia repetida:
 
 `GET /warehouse/dispatches`: pedidos `paid` o `ready` de todos (también de la
 web), ordenados por la hora acordada más cercana; los que no tienen hora van al
-final, por `paid_at`. `lines` trae todo lo que hay que preparar. `is_late` = ya
-pasó `promised_dispatch_at` y no se entregó (sirve para el KPI «Despachos dentro
-de plazo»; sin hora acordada, nunca).
+final, por `paid_at`. `lines` trae todo lo que hay que sacar de la bodega, **por
+producto**: los combos salen por sus componentes, sumados con los productos
+sueltos. `is_late` = ya pasó `promised_dispatch_at`, no se entregó y se había
+pagado antes de esa hora: un QR que Jime confirma tarde no es atraso de almacén;
+el efectivo, que se cobra al registrar, siempre cuenta (decidido el 25/11/2026;
+sirve para
+el KPI «Despachos dentro de plazo»; sin hora acordada, nunca).
 
 {{dispatchesResponse}}
 
@@ -447,15 +465,31 @@ de plazo»; sin hora acordada, nunca).
   `dispatched_at` y `delivered_at`, **resta** de `stock` y de `reserved`, y crea
   un movimiento `sale` negativo por producto (en combos, por cada componente).
 
-En otro estado, `409 invalid_status`.
+En otro estado, `409 invalid_status`. Si al entregar lo apartado no alcanza (algo
+lo cambió por fuera), `409 insufficient_stock` y no se descuenta nada: cada
+pedido aparta lo suyo al registrarse, también los de la tienda web.
 
 ### Caja del día
 
 `GET /cash/today`: lo cobrado hoy por forma de pago, lo recibido si ya se cerró,
 los pedidos por cobrar y los **días pendientes**. `expected` suma los pagos
-`submitted` o `confirmed` del día en que llegaron (`received_at`; mientras esté
-sin confirmar, `submitted_at`). `lines` trae siempre `qr`, `transfer` y `cash`,
-y `card` solo si hubo pagos con tarjeta de la web.
+`submitted` o `confirmed` (sin los de pedidos cancelados, vencidos o devueltos).
+`lines` trae siempre `qr`, `transfer` y `cash`, y `card` solo si hubo pagos con
+tarjeta de la web.
+
+**Cada cobro queda en un solo cierre** (decisión del 25/11/2026):
+
+- va en la caja del día en que llegó el dinero (`received_at`; mientras esté sin
+  confirmar, `submitted_at`);
+- si llega **después de que ese día se envió**, se suma al **siguiente cierre que
+  se envíe** de un día posterior (mientras tanto aparece en cada día posterior
+  sin enviar);
+- lo cobrado antes del 1/12/2026 va en la caja del 1/12.
+
+Un día enviado o validado se muestra **como se envió**. Uno observado se vuelve a
+calcular y trae lo que se había contado. `pending` son los pedidos de ese día en
+`pending_payment`, con `detail` «sin comprobante» o «comprobante rechazado».
+`closed_by_name` y `sent_at` son `null` mientras no se envió.
 
 **Cada día se cierra, aunque no haya cobros** (decisión del 24/11/2026).
 `pending_days` son los días desde el 1/12/2026 hasta ayer sin enviar (`open`) u
@@ -464,45 +498,56 @@ observados, del más antiguo al más nuevo.
 {{cashDayResponse}}
 
 `GET /cash/days/{date}` (`2026-12-04`): un día anterior, con el mismo formato y
-sin `pending_days`. Antes del 1/12/2026 o en el futuro, `404`.
+sin `pending_days`. Antes del 1/12/2026 o en el futuro, `404`. Antes del 1/12,
+`/cash/today` muestra lo del día, pero no se puede enviar.
 
 `POST /cash/closings` (la diferencia la calcula la base), para hoy o un día
-anterior:
+anterior, con `Idempotency-Key` UUID (`422` si falta):
 
 {{cashClosingRequest}}
 
-- Hay que mandar lo recibido de cada línea.
-- Si algo no cuadra y no hay `note`: `422 difference_needs_note`.
+- Hay que mandar lo recibido de cada línea (`422` «Falta lo recibido por …»). Si
+  además se contó algo de una forma de pago sin línea, queda con esperado 0.
+- Si algo no cuadra y no hay `note`: `422 difference_needs_note`. La app solo
+  envía sin nota lo que a su vista cuadra, así que entonces vuelve a pedir la
+  caja (pudo entrar un cobro mientras se enviaba).
 - Queda `sent` y los pagos incluidos se ligan al cierre
   (`payments.cash_closing_id`). Si ya está `sent` o `validated`,
   `409 closing_already_sent`; si Jime lo observó, se vuelve a enviar (hay un
-  cierre por fecha), esa vez aunque el día ya haya pasado.
+  cierre por fecha), esa vez aunque el día ya haya pasado. Al reenviar se borran
+  `validated_by`, `validated_at` y `review_note` (quedan en el historial) y los
+  pagos que ya no cuentan se desligan.
 
-Responde con el formato de `GET /cash/today`.
+Responde `200` con el formato de `GET /cash/today`.
 
 ### Stock y conteos
 
-`POST /inventory/movements`: entradas y ajustes. `type`: `initial`, `purchase`,
-`adjustment_in` (cantidad positiva) o `adjustment_out` (**negativa**). El stock
-empieza en 0: la primera carga es con `initial` (la app solo la ofrece para
-productos en 0). Los ajustes **exigen `note`** (`422 note_required`). `409
-below_reserved` si el stock quedaría por debajo de lo reservado.
+`POST /inventory/movements`: entradas y ajustes, con `Idempotency-Key` UUID (se
+guarda en `stock_movements.client_uuid`). `type`: `initial`, `purchase`,
+`adjustment_in` (cantidad positiva) o `adjustment_out` (**negativa**); con otro
+signo, `422`. El stock empieza en 0: la primera carga es con `initial` (la app
+solo la ofrece para productos en 0). Los ajustes **exigen `note`** (`422
+note_required`). `409 below_reserved` si el stock quedaría por debajo de lo
+reservado. Responde `201`.
 
-Para corregir un conteo se manda `inventory_count_id`: la cantidad debe ser
-justo la diferencia de ese producto (si no, `422`) y solo una vez
-(`409 already_adjusted`).
+Para corregir un conteo se manda `inventory_count_id`: tiene que ser un ajuste
+(`adjustment_in` o `adjustment_out`) por **justo la diferencia** de ese producto
+(si no, `422`) y solo una vez (`409 already_adjusted`). Un producto que no está
+en el conteo, `404`.
 
 {{stockEntryRequest}}
 
 {{stockLevelResponse}}
 
-`POST /inventory/counts`: el servidor guarda lo que había **en bodega**
-(`system_qty` = `stock`, con lo reservado) en ese momento. **El conteo no cambia
-el stock**; se corrige con un ajuste, que hace almacén con su motivo (decisión
-del 24/11/2026). La app no muestra esas cifras mientras se cuenta.
-`GET /inventory/counts` devuelve la lista, la más nueva primero; `adjusted` = ya
-hay un movimiento de ese conteo para ese producto. Jime también la lee («Más» →
-Inventario y conteos), sin poder ajustar.
+`POST /inventory/counts` (con `Idempotency-Key`, responde `201`): el servidor
+guarda lo que había **en bodega** (`system_qty` = `stock`, con lo reservado) en
+ese momento. **El conteo no cambia el stock**; se corrige con un ajuste, que hace
+almacén con su motivo (decisión del 24/11/2026). La app no muestra esas cifras
+mientras se cuenta. `counted_on` no puede ser futura y cada producto va una sola
+vez. `GET /inventory/counts` devuelve la lista, la más nueva primero, con los
+productos por nombre; `adjusted` = ya hay un movimiento de ese conteo para ese
+producto. La leen `warehouse` y `control` («Más» → Inventario y conteos); Jime no
+puede ajustar.
 
 {{inventoryCountRequest}}
 
@@ -514,20 +559,26 @@ Inventario y conteos), sin poder ajustar.
 
 {{controlSummaryResponse}}
 
-`members[].score_percent` es el avance con lo cargado. `pending` cuenta pagos
-`submitted`, indicadores con evidencia `in_review`, cierres `sent` y entregas en
-revisión. `bonus` sale de `v_week_bonus` y `v_week_member_bonus`.
+El resumen es de la **semana en curso**. `members[].score_percent` es el avance
+con lo cargado. `pending` cuenta comprobantes `submitted` (el efectivo va con la
+caja), indicadores con evidencia `in_review`, cierres de caja `sent` y entregas
+en revisión (de semanas que todavía se pueden cambiar). `collected` y `bonus`
+salen de `v_week_bonus` y `v_week_member_bonus` o, si la semana ya se envió, de
+su foto. Lo leen `control` y `management`.
 
 ### `GET /control/pending?type=`
 
 `type`: `payment`, `evidence`, `cash_closing`, `deliverable`. **El más antiguo
 primero.** `id` es el del pago, del indicador semanal, del cierre o de la entrega.
+La fecha de una evidencia es la de la más antigua sin revisar y la de una
+entrega, cuando se envió. Solo `control`.
 
 {{pendingResponse}}
 
 ### Pagos (conciliación)
 
-`GET /control/payments/{id}`. `reference_unique` lo calcula el servidor.
+`GET /control/payments/{id}`. `reference_unique` lo calcula el servidor (en
+cualquier forma de pago, sin contar pagos rechazados o devueltos).
 
 {{paymentReviewResponse}}
 
@@ -537,9 +588,12 @@ primero.** `id` es el del pago, del indicador semanal, del cierre o de la entreg
 
 Con `amount_matches` o `destination_ok` en falso: `422` (se debe rechazar). Si el
 pago ya no está `submitted`, `409 already_reviewed`; con la referencia usada en
-otro pago vigente, `409 reference_duplicated`. En una transacción: pago `confirmed` (`reviewed_by`, `reviewed_at`; `received_at` = el
-indicado o `submitted_at`), pedido `paid` con `paid_at`, y sus comisiones pasan a
-`earned`. Responde con el pago.
+otro pago vigente, `409 reference_duplicated`; si es efectivo, `409
+invalid_status` (se confirma al validar la caja). `received_at` no puede ser
+futura (`422`) ni de una semana ya enviada a Dirección (`409 week_closed`). En
+una transacción: pago `confirmed` (`reviewed_by`, `reviewed_at`; `received_at`
+= el indicado o `submitted_at`), pedido `paid` con `paid_at`, y sus comisiones
+pasan a `earned` con `earned_at` = `received_at`. Responde con el pago.
 
 `POST /control/payments/{id}/reject` con `{ "reason" }` (obligatorio): pago
 `rejected` y el pedido vuelve a `pending_payment`.
@@ -557,20 +611,25 @@ indicado o `submitted_at`), pedido `paid` con `paid_at`, y sus comisiones pasan 
   revisión pasa a `observed` (si no hay ninguna esperando, `409
   already_reviewed`).
 
-Ambos responden con el formato del `GET`. Con la semana ya autorizada,
-`409 week_closed`.
+Ambos responden con el formato del `GET`. Una semana que no empezó: `422`.
+
+**Con el cierre en Dirección la semana no cambia** (decidido el 25/11/2026):
+mientras está `sent`, `authorized` o `paid`, ni Jime ni el equipo cambian
+valores, evidencia o entregas (`409 week_closed`; en «Mi semana»,
+`accepts_evidence: false`). Para corregir, Dirección lo devuelve.
 
 `GET /control/members/{id}/week?week=1`: la semana de un integrante, **con el
 mismo formato que `GET /me/week`**. Jime la abre desde Cumplimiento para cargar
-valores aunque nadie haya subido evidencia. Con un `id` que no es del equipo,
-`404`.
+valores aunque nadie haya subido evidencia. Sin `week`, la que falta cerrar
+(sección 9). Con un `id` que no es del equipo, `404`. Solo `control`.
 
 ### Cierres de caja y entregas
 
 - `GET /control/cash-closings/{id}`: formato de la caja del día.
 - Validar u observar un cierre que ya no está `sent`: `409 already_reviewed`.
 - `POST /control/cash-closings/{id}/validate`: `validated`; los pagos **en
-  efectivo** ligados al cierre quedan `confirmed` (`received_at` =
+  efectivo** ligados al cierre (también los que llegaron tarde) quedan
+  `confirmed` (`received_at` =
   `submitted_at`) y sus comisiones pasan a `earned`. Esos pedidos ya estaban
   `paid`, `ready` o `delivered`: no cambian de estado.
 - `POST /control/cash-closings/{id}/observe` con `{ "note" }`.
@@ -580,7 +639,7 @@ valores aunque nadie haya subido evidencia. Con un `id` que no es del equipo,
   `late`.
 - `POST /control/deliverables/{id}/reject` con `{ "note" }`: `jime_validated = false`.
 - En las dos: solo las que están en revisión (`409 already_reviewed`) y con la
-  semana sin autorizar (`409 week_closed`).
+  semana sin enviar a Dirección (`409 week_closed`).
 
 ### Devoluciones y duplicados
 
@@ -589,7 +648,8 @@ Jime busca el pedido en «Más» → Pedidos.
 `GET /control/orders?search=&page=`: **todos** los pedidos (también los de la web),
 del más nuevo al más antiguo, 20 por página. `search` busca por número
 (`N-1046`) o nombre del cliente, sin importar mayúsculas ni tildes.
-`seller_name` es `null` en los de la web.
+`seller_name` es `null` en los de la web. Todo lo de pedidos es solo de
+`control`.
 
 {{controlOrdersResponse}}
 
@@ -612,8 +672,9 @@ devolver, `409 invalid_status`:
 Pedido `returned`; el pago confirmado queda `reversed` (deja de contar para el
 bono) y el que faltaba confirmar, `rejected`; comisión `earned` → una fila
 `adjustment` con base negativa en el mes actual, comisión `pending` →
-`cancelled`; si ya se entregó, movimiento `sale_return` y vuelve al stock; si no,
-se libera la reserva.
+`cancelled`; si ya se entregó, movimiento `sale_return` y vuelve al stock (de un
+combo, sus componentes); si no, se libera la reserva. El motivo queda en la
+línea de tiempo y en los pagos.
 
 `POST /control/orders/{id}/duplicate` (`204`): se anula este pedido
 (`cancel_reason = 'duplicate'`, `duplicate_of_id`), se libera la reserva y se
@@ -625,9 +686,24 @@ cancelado, vencido, devuelto ni anulado por duplicado), si no, `422`.
 
 ## 9. Cumplimiento, cierre semanal, bono y comisiones
 
+### Qué semana se muestra
+
+Cumplimiento, cierre y bono se trabajan cuando la semana ya terminó. Sin
+`?week=`, el servidor elige (decidido el 25/11/2026):
+
+- **Cumplimiento y cierre**: la semana terminada más antigua sin enviar a
+  Dirección (`open` o `returned`);
+- **Bono**: la terminada más antigua sin pagar (sin enviar, sin autorizar o
+  autorizada con pagos sin marcar);
+- si no queda ninguna, la semana en curso.
+
+Con `?week=n` se ve cualquier semana que ya empezó (otra, `404`). Las tres
+respuestas dicen qué semana muestran y cuál es la actual (`current_week`); la
+app deja ir a la anterior y a la siguiente.
+
 ### `GET /control/compliance?week=`
 
-De `v_member_week_compliance`:
+De `v_member_week_compliance` (las entregas, solo en la semana que las pide):
 
 {{complianceResponse}}
 
@@ -635,7 +711,8 @@ De `v_member_week_compliance`:
 
 `GET /control/weekly-closing?week=`: los 4 controles del Excel, calculados y
 redactados. `pending_members` lista a quienes siguen pendientes y qué les falta
-(solo mientras está `open` o `returned`).
+(solo mientras está `open` o `returned`). `sendable_from` es el día siguiente al
+fin de la semana: desde ahí se puede enviar. Solo `control`.
 
 | Control | Quién lo decide | Pasa cuando |
 |---|---|---|
@@ -652,6 +729,9 @@ redactados. `pending_members` lista a quienes siguen pendientes y qué les falta
 motivo obligatorio por persona (puede ir vacío):
 
 {{sendClosingRequest}}
+
+**Solo cuando la semana terminó** (desde `sendable_from`, hora de Bolivia), para
+que no quede ninguna venta fuera del bono; antes, `409 week_not_ended`.
 
 En **una sola transacción**:
 
@@ -690,14 +770,17 @@ cumple **no se reparte**. `closed_reason` = motivo del cierre a mano.
 {{bonusResponse}}
 
 `POST /control/bonus/{week}/members/{member}/paid`: solo con el cierre
-autorizado, a quien cumple y todavía no cobró (`409 not_ready_to_pay`). Cuando se pagó a todos, el cierre pasa a
-`paid`.
+autorizado, a quien cumple y todavía no cobró (`409 not_ready_to_pay`). Cuando
+ya se pagó a todos los que tienen algo que cobrar, el cierre pasa a `paid`.
+Responde con el bono.
 
 ### Comisiones
 
 `GET /control/commissions?month=2026-12`: comisiones cobradas en el mes
-(`earned_at`) con sus ajustes, una fila por quien vende (`seller` y
-`wholesale`). Si alguna no tiene %, `rates_pending: true` y los montos pueden ser
+(`earned_at` = cuando llegó el dinero) con sus ajustes, una fila por quien vende
+(`seller` y `wholesale`). Lo que se gana cuando la liquidación de su mes **ya se
+envió** (un cobro confirmado tarde) entra en la siguiente que se envíe de un mes
+posterior (decidido el 25/11/2026). Enviada, se muestra como se envió. Si alguna no tiene %, `rates_pending: true` y los montos pueden ser
 `null`. `settles_on` = último día del mes. La app consulta también el mes
 anterior para saber si falta liquidarlo, así que **un mes sin ventas (también
 antes de la campaña) responde `200`** con ceros, no `404`.
@@ -708,7 +791,7 @@ antes de la campaña) responde `200`** con ceros, no `404`.
   mes, liga las comisiones `earned` y la manda a Dirección. **Solo cuando el mes
   terminó** (desde el día 1 del siguiente, hora de Bolivia): antes,
   `409 month_not_ended`. Sin comisiones cobradas, `409 nothing_to_settle`; con %
-  pendientes, `409 rates_pending`.
+  pendientes, `409 rates_pending`; ya enviada, `409 closing_already_sent`.
 - `POST /control/commissions/{month}/paid`: solo si está autorizada.
 
 ## 10. «Más»: precios, historial, reportes y accesos
@@ -841,8 +924,10 @@ unidades de distintos productos no se suman y **no hay monto mínimo de pedido**
 pruebas: `lib/features/catalog/domain/pricing.dart` y
 `test/features/catalog/pricing_test.dart`.
 
-Promociones: se publican solo autorizadas; una por puerta; **ninguna baja del
-precio por mayor** (lo valida el backend al crear y al vender).
+Promociones: son de la tienda web (las puertas del calendario) y **no se aplican
+a las ventas de la app**. Se publican solo autorizadas; una por puerta;
+**ninguna baja del precio por mayor** (lo valida el backend al crear y al
+vender).
 
 > Las pantallas para **crear** promociones, productos, imágenes y combos no
 > están en los mockups de la app. Hará falta un panel web o agregarlas.
@@ -851,8 +936,8 @@ precio por mayor** (lo valida el backend al crear y al vender).
 
 Una persona por venta, con la tasa **de cada producto** al momento de vender.
 `pending` → `earned` cuando el cobro se **confirma** (el efectivo, al validar la
-caja, aunque el pedido ya esté `paid`); devolución de algo cobrado = `adjustment`
-negativo. Se liquida por mes, **cuando el mes termina**, y es independiente del
+caja, aunque el pedido ya esté `paid`), con la fecha en que llegó el dinero;
+devolución de algo cobrado = `adjustment` negativo del día en que se devuelve. Se liquida por mes, **cuando el mes termina**, y es independiente del
 bono. Si Dirección aprueba el % de un producto, las ventas de ese producto que no
 tenían % y no se liquidaron **toman ese %** (queda en el historial).
 
@@ -869,7 +954,7 @@ En efectivo (vendedores): nace en paid, con el cobro por confirmar.
 
 | Momento | Inventario |
 |---|---|
-| Se registra el pedido | `reserved += cantidad` |
+| Se registra el pedido | `reserved += cantidad` (en combos, la de cada componente) |
 | Se cancela, vence o es duplicado | `reserved -= cantidad` |
 | Se entrega | `stock -= cantidad`, `reserved -= cantidad`, movimiento `sale` |
 | Se devuelve algo entregado | movimiento `sale_return`, `stock += cantidad` |
@@ -927,10 +1012,8 @@ las imágenes y la audiencia de regalo (`gift_audience`).
 | Tema | Hoy | Falta decidir |
 |---|---|---|
 | Mínimos por producto | Los del Excel (24, 12, 6 y 3 unidades) | Confirmarlos: el Excel los llama «propuesta comercial» |
-| Código del segundo paso | `channel` libre | ¿WhatsApp, SMS, correo o app autenticadora? |
+| Correo para los códigos | En desarrollo quedan en el log | Qué cuenta (SMTP) los envía en producción |
 | % de comisión y fecha de pago | `null` | Definirlos |
 | Comisión de ventas web | Sin vendedor, sin comisión | Si alguien debe cobrarlas |
-| Cobros después de enviar la caja | El cierre enviado no cambia; esos cobros quedan sin cierre | ¿Van al cierre del día siguiente o Jime pide corregir? |
-| Pago confirmado tarde | Si Jime confirma un QR después de la hora acordada, el despacho sale atrasado | ¿Cuenta como atraso de almacén? |
 | Envío y pasarela | `shipping_bs` nulo; `gateway_provider` libre | Costo del delivery y proveedor de tarjeta |
 | Códigos del equipo | `JIM-01` … `DIR-08` (propuesta) | Confirmarlos antes de entregar los PIN |

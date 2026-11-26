@@ -11,6 +11,7 @@ import '../../../core/ui/chamfer.dart';
 import '../../../core/ui/dialogs.dart';
 import '../../../core/ui/ficha.dart';
 import '../../../core/ui/form_pieces.dart';
+import '../../orders/presentation/order_widgets.dart' show weekdayDate;
 import '../../team/presentation/week_widgets.dart' show SideNote;
 import '../application/control_providers.dart';
 import '../domain/payouts.dart';
@@ -19,15 +20,24 @@ import 'panel_widgets.dart';
 /// El cierre de la semana de Jime: los 4 controles, quienes siguen pendientes
 /// y el envío a Dirección.
 class WeeklyClosingScreen extends StatelessWidget {
-  const WeeklyClosingScreen({super.key});
+  const WeeklyClosingScreen({super.key, this.weekNumber});
+
+  /// `null`: la semana que falta cerrar.
+  final int? weekNumber;
 
   @override
   Widget build(BuildContext context) {
     return AsyncPage(
-      provider: weeklyClosingProvider,
+      provider: weeklyClosingProvider(weekNumber),
       header: const [],
       builder: (context, ref, closing) => [
         PageTitle('Cierre de la semana', subtitle: closing.week.label),
+        WeekNav(
+          shown: closing.weekNumber,
+          current: closing.currentWeek,
+          chosen: weekNumber,
+          onShow: (week) => context.go(AppRoutes.closeWeek(week)),
+        ),
         const SizedBox(height: 10),
         _ClosingBody(closing, key: ValueKey((closing.weekNumber, closing.status))),
       ],
@@ -72,6 +82,9 @@ class _ClosingBodyState extends ConsumerState<_ClosingBody> {
   String? get _blockedReason {
     if (!_data.paymentsReconciled.ok) return 'Faltan cobros por confirmar';
     if (!_data.kpiEvidence.ok) return 'Falta revisar evidencia';
+    if (ref.watch(todayProvider)().isBefore(_data.sendableFrom)) {
+      return 'Se envía desde el ${weekdayDate(_data.sendableFrom)}';
+    }
     if (!_duplicates) return 'Confirma los duplicados';
     for (final member in _data.pendingMembers) {
       if (!_closing.contains(member.id)) return 'Resuelve a ${member.name}';
@@ -165,7 +178,7 @@ class _ClosingBodyState extends ConsumerState<_ClosingBody> {
           Align(
             alignment: Alignment.centerLeft,
             child: TextLink('Ver cumplimiento',
-                onTap: () => context.go(AppRoutes.compliance)),
+                onTap: () => context.go(AppRoutes.complianceWeek(closing.weekNumber))),
           ),
           for (final member in closing.pendingMembers) _pendingMember(member),
         ],
@@ -229,7 +242,8 @@ class _ClosingBodyState extends ConsumerState<_ClosingBody> {
           const SizedBox(height: 6),
           Align(
             alignment: Alignment.centerLeft,
-            child: TextLink('Ver bonos', onTap: () => context.go(AppRoutes.bonuses)),
+            child: TextLink('Ver bonos',
+                onTap: () => context.go(AppRoutes.bonusesWeek(closing.weekNumber))),
           ),
         ],
       ],

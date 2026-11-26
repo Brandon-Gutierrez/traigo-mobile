@@ -214,9 +214,11 @@ class _MonthSection extends StatelessWidget {
         const SectionHeader('Este mes'),
         LeaderRow(
           'Comisión del mes',
-          commission.amount.formatFixed(),
+          commission.amount?.formatFixed() ?? '[% por definir]',
           labelStyle: AppText.body(17, FontWeight.w700),
-          valueStyle: AppText.mono(16, weight: FontWeight.w700, color: AppColors.violet),
+          valueStyle: commission.amount == null
+              ? AppText.mono(11.5, color: AppColors.muted)
+              : AppText.mono(16, weight: FontWeight.w700, color: AppColors.violet),
         ),
         const SizedBox(height: 2),
         Text(

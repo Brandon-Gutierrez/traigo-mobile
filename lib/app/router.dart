@@ -193,12 +193,14 @@ List<GoRoute> _innerRoutes(String tab) => switch (tab) {
       AppRoutes.summary => [
           GoRoute(
             path: 'compliance',
-            builder: (_, _) => const ComplianceScreen(),
+            builder: (_, state) => ComplianceScreen(weekNumber: _weekOf(state)),
             routes: [
               GoRoute(
                 path: ':memberId',
-                builder: (_, state) =>
-                    MemberWeekScreen(memberId: state.pathParameters['memberId']!),
+                builder: (_, state) => MemberWeekScreen(
+                  memberId: state.pathParameters['memberId']!,
+                  weekNumber: _weekOf(state),
+                ),
                 routes: [
                   GoRoute(
                     path: 'indicator/:resultId',
@@ -207,6 +209,7 @@ List<GoRoute> _innerRoutes(String tab) => switch (tab) {
                       backLabel: 'Indicadores',
                       backRoute: AppRoutes.complianceMember(
                         state.pathParameters['memberId']!,
+                        weekNumber: _weekOf(state),
                       ),
                     ),
                   ),
@@ -367,8 +370,8 @@ Widget _screenFor(String route, GoRouterState state) => switch (route) {
       AppRoutes.team => const TeamScreen(),
       AppRoutes.week => const WeekScreen(),
       AppRoutes.pending => PendingScreen(type: _pendingType(state)),
-      AppRoutes.close => const WeeklyClosingScreen(),
-      AppRoutes.bonuses => const BonusScreen(),
+      AppRoutes.close => WeeklyClosingScreen(weekNumber: _weekOf(state)),
+      AppRoutes.bonuses => BonusScreen(weekNumber: _weekOf(state)),
       AppRoutes.commissions => const CommissionsScreen(),
       AppRoutes.approve => const AuthorizationsScreen(),
       AppRoutes.more => const MoreScreen(),

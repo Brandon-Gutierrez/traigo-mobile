@@ -177,6 +177,18 @@ void main() {
       expect(home.cashToday, isNull);
     });
 
+    test('la comisión sin % definido llega sin monto', () async {
+      final home = await load({
+        'data': {
+          ...sellerHomeResponse['data']!,
+          'month_commission': {'amount': null, 'pay_note': null},
+        },
+      });
+
+      expect(home.monthCommission, isNotNull);
+      expect(home.monthCommission!.amount, isNull);
+    });
+
     test('lee la caja del día de almacén', () async {
       final home = await load(warehouseHomeResponse);
 

@@ -10,7 +10,7 @@ const pendingResponse = {
       'type': 'cash_closing',
       'id': 'cc-5',
       'title': 'Isaí · cierre del sábado 5 dic',
-      'subtitle': 'Efectivo, QR y transferencia',
+      'subtitle': 'QR, transferencia y efectivo',
       'created_at': '2026-12-05T18:30:00-04:00',
       'amount': '7670.00',
     },
@@ -88,7 +88,7 @@ const controlOrdersResponse = {
       'seller_name': null,
     },
   ],
-  'meta': {'current_page': 1, 'last_page': 1, 'per_page': 30, 'total': 2},
+  'meta': {'current_page': 1, 'last_page': 1, 'per_page': 20, 'total': 2},
 };
 
 const controlOrderResponse = {
@@ -143,15 +143,18 @@ const complianceResponse = {
       'closed_reason': null,
     },
   ],
+  'meta': {'week': numberedWeekJson, 'current_week': 2},
 };
 
 const weeklyClosingResponse = {
   'data': {
     'week': numberedWeekJson,
+    'current_week': 2,
+    'sendable_from': '2026-12-07',
     'status': 'open',
     'checks': {
       'payments_reconciled': {'ok': true, 'detail': '34 de 34 pagos confirmados'},
-      'kpi_evidence': {'ok': true, 'detail': '6 de 6 personas con evidencia validada'},
+      'kpi_evidence': {'ok': true, 'detail': '6 de 6 personas sin evidencia por revisar'},
       'duplicates_cleared': {'ok': true, 'detail': '1 duplicado quitado (N-1049)'},
       'direction_approval': {'ok': false, 'detail': 'Falta su aprobación'},
     },
@@ -174,6 +177,7 @@ const sendClosingRequest = {
 const bonusResponse = {
   'data': {
     'week': numberedWeekJson,
+    'current_week': 2,
     'status': 'sent',
     'collected': '41600.00',
     'achievement_percent': 104,

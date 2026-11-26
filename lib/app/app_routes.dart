@@ -26,9 +26,15 @@ abstract final class AppRoutes {
   /// Cumplimiento, desde el Resumen: la semana de cada integrante y la
   /// evidencia de un indicador suyo.
   static const compliance = '$summary/compliance';
-  static String complianceMember(String memberId) => '$compliance/$memberId';
-  static String complianceIndicator(String memberId, String resultId) =>
-      '${complianceMember(memberId)}/indicator/$resultId';
+  static String complianceWeek(int? weekNumber) => _inWeek(compliance, weekNumber);
+  static String complianceMember(String memberId, {int? weekNumber}) =>
+      _inWeek('$compliance/$memberId', weekNumber);
+  static String complianceIndicator(String memberId, String resultId, {int? weekNumber}) =>
+      _inWeek('$compliance/$memberId/indicator/$resultId', weekNumber);
+
+  /// El cierre y el bono de una semana; sin número, la que toca.
+  static String closeWeek(int? weekNumber) => _inWeek(close, weekNumber);
+  static String bonusesWeek(int? weekNumber) => _inWeek(bonuses, weekNumber);
 
   /// La bandeja de Jime y cada cosa por revisar.
   static String pendingOfType(String type) => '$pending?type=$type';
