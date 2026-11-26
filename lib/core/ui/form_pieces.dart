@@ -250,11 +250,13 @@ class LabeledField extends StatelessWidget {
     this.textCapitalization = TextCapitalization.none,
     this.onChanged,
     this.lines = 1,
+    this.autofocus = false,
   });
 
   final String label;
   final TextEditingController controller;
   final String? hint;
+  final bool autofocus;
 
   /// Para números y códigos.
   final bool mono;
@@ -279,6 +281,7 @@ class LabeledField extends StatelessWidget {
         label: label,
         child: TextField(
           controller: controller,
+          autofocus: autofocus,
           enabled: enabled,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,

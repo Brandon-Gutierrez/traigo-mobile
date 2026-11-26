@@ -208,7 +208,7 @@ void main() {
     expect(find.text('TU 20 %'), findsOneWidget);
     expect(find.text('36.000'), findsOneWidget);
     expect(find.text('150'), findsOneWidget);
-    expect(find.textContaining('Ya cumples, vas en 83 %.'), findsOneWidget);
+    expect(findTextContaining('Ya cumples, vas en 83 %.'), findsOneWidget);
     expect(find.text('11–14 ene'), findsOneWidget);
     expect(find.text('ACTUAL'), findsOneWidget);
     expect(tester.takeException(), isNull);

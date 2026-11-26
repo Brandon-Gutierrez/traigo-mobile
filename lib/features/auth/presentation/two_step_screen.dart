@@ -45,10 +45,8 @@ class _TwoStepScreenState extends ConsumerState<TwoStepScreen> {
 
   void _addDigit(String digit, int length) {
     if (_busy || _value.length >= length) return;
-    setState(() {
-      _value += digit;
-      _error = null;
-    });
+    // Como en el PIN: el error no se quita aquí para no mover el teclado.
+    setState(() => _value += digit);
   }
 
   void _backspace() {

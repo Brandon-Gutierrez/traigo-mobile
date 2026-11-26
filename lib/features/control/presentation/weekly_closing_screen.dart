@@ -30,6 +30,8 @@ class WeeklyClosingScreen extends StatelessWidget {
     return AsyncPage(
       provider: weeklyClosingProvider(weekNumber),
       header: const [],
+      // Al enviar se pasa al siguiente cierre: que se vea desde su título.
+      topWhenChanges: (closing) => closing.weekNumber,
       builder: (context, ref, closing) => [
         PageTitle('Cierre de la semana', subtitle: closing.week.label),
         WeekNav(

@@ -5,12 +5,20 @@ import '../theme/app_theme.dart';
 /// Lista de una pantalla principal: respeta el área segura y se actualiza al
 /// deslizar hacia abajo.
 class RefreshablePage extends StatelessWidget {
-  const RefreshablePage({super.key, required this.onRefresh, required this.children});
+  const RefreshablePage({
+    super.key,
+    required this.onRefresh,
+    required this.children,
+    this.scrollKey,
+  });
 
   /// Vuelve a pedir los datos. Si falla, el error ya se muestra en pantalla
   /// con su botón de reintentar.
   final Future<void> Function() onRefresh;
   final List<Widget> children;
+
+  /// Cuando cambia, la lista vuelve arriba.
+  final Object? scrollKey;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +33,7 @@ class RefreshablePage extends StatelessWidget {
           } catch (_) {}
         },
         child: ListView(
+          key: ValueKey(scrollKey),
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
           children: children,

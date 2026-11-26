@@ -211,6 +211,8 @@ class _DeliverableFormState extends ConsumerState<_DeliverableForm> {
 
   Future<void> _pickDate() async {
     final today = _today;
+    // Sin esto, al cerrar el selector vuelve a abrirse el teclado.
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: _deliveredOn.isAfter(today) ? today : _deliveredOn,

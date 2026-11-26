@@ -128,6 +128,7 @@ class _ReviewBodyState extends ConsumerState<_ReviewBody> {
 
   Future<void> _pickDate() async {
     final today = ref.read(todayProvider)();
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: _deliveredOn ?? today,

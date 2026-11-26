@@ -14,9 +14,13 @@ class AsyncPage<T> extends ConsumerWidget {
     required this.provider,
     required this.builder,
     this.header = const [],
+    this.topWhenChanges,
   });
 
   final FutureProvider<T> provider;
+
+  /// Si lo que devuelve cambia (ej. otra semana), la pantalla vuelve arriba.
+  final Object? Function(T data)? topWhenChanges;
 
   /// Lo que se ve aunque todavía esté cargando (volver y título).
   final List<Widget> header;
@@ -25,7 +29,9 @@ class AsyncPage<T> extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final value = ref.watch(provider);
+    final data = value.value;
     return RefreshablePage(
+      scrollKey: data == null ? null : topWhenChanges?.call(data),
       onRefresh: () {
         ref.invalidate(provider);
         return ref.read(provider.future);

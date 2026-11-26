@@ -274,6 +274,15 @@ class _DeliveryTime extends ConsumerWidget {
 
   static String _two(int n) => n.toString().padLeft(2, '0');
 
+  /// La próxima hora en punto. Desde las 23:00 no queda ninguna para hoy: se
+  /// proponen las 23:59 en vez de las 0:00, que ya habrían pasado.
+  static TimeOfDay _suggestedTime(DateTime now, _Day? day) {
+    if (now.hour == 23 && (day == null || day == _Day.today)) {
+      return const TimeOfDay(hour: 23, minute: 59);
+    }
+    return TimeOfDay(hour: (now.hour + 1) % 24, minute: 0);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(nowProvider)();
@@ -297,6 +306,8 @@ class _DeliveryTime extends ConsumerWidget {
         );
         return;
       }
+      // Sin esto, al cerrar el selector vuelve a abrirse el teclado.
+      FocusManager.instance.primaryFocus?.unfocus();
       final picked = await showDatePicker(
         context: context,
         initialDate: date == null || date.isBefore(today) ? today : date,
@@ -308,9 +319,10 @@ class _DeliveryTime extends ConsumerWidget {
     }
 
     Future<void> pickTime() async {
+      FocusManager.instance.primaryFocus?.unfocus();
       final picked = await showTimePicker(
         context: context,
-        initialTime: time ?? TimeOfDay(hour: (now.hour + 1) % 24, minute: 0),
+        initialTime: time ?? _suggestedTime(now, selected),
         helpText: 'Hora de entrega',
       );
       if (picked != null) controller.edit((d) => d.copyWith(deliveryTime: picked));

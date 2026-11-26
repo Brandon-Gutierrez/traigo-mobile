@@ -159,7 +159,8 @@ class _Detail extends ConsumerWidget {
                 [
                   if (detail.pays.isNotEmpty)
                     'a ${detail.pays.length} ${detail.pays.length == 1 ? 'persona' : 'personas'}',
-                  'lo envió ${item.requestedBy} ${timeAgo(item.requestedAt, now)}',
+                  '${detail.pays.isEmpty ? 'Lo' : 'lo'} envió ${item.requestedBy} '
+                      '${timeAgo(item.requestedAt, now)}',
                 ].join(' · '),
                 style: AppText.body(13.5, FontWeight.w400),
               ),

@@ -54,10 +54,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _addDigit(String digit) {
     if (_busy || _pin.length >= _pinLength) return;
     FocusScope.of(context).unfocus();
-    setState(() {
-      _pin += digit;
-      _error = null;
-    });
+    // El error se queda hasta el próximo intento: está encima del teclado y, si
+    // se quitara aquí, las teclas se moverían mientras la persona escribe.
+    setState(() => _pin += digit);
   }
 
   void _backspace() {

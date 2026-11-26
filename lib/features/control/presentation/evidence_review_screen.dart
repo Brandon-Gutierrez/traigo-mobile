@@ -287,9 +287,16 @@ class _ValueDialog extends StatefulWidget {
 }
 
 class _ValueDialogState extends State<_ValueDialog> {
-  late final _text = TextEditingController(
-    text: widget.initial == null ? '' : kpiNumber(widget.initial!),
-  );
+  late final TextEditingController _text;
+
+  @override
+  void initState() {
+    super.initState();
+    // Lo que ya había queda marcado: al escribir se reemplaza.
+    final initial = widget.initial == null ? '' : kpiNumber(widget.initial!);
+    _text = TextEditingController(text: initial)
+      ..selection = TextSelection(baseOffset: 0, extentOffset: initial.length);
+  }
 
   @override
   void dispose() {
@@ -308,6 +315,7 @@ class _ValueDialogState extends State<_ValueDialog> {
       content: LabeledField(
         label: 'Valor alcanzado',
         controller: _text,
+        autofocus: true,
         mono: true,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [

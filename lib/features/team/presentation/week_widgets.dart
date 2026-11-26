@@ -169,8 +169,13 @@ ImageProvider? attachmentImage(String url) {
   return file.existsSync() ? FileImage(file) : null;
 }
 
-/// El nombre del archivo al final de una dirección.
+/// El nombre del archivo al final de una dirección. De una de internet se toma
+/// solo la ruta: los enlaces firmados traen datos después del «?».
 String attachmentName(String url) {
+  if (url.startsWith('http')) {
+    final segments = Uri.tryParse(url)?.pathSegments.where((s) => s.isNotEmpty);
+    return segments?.lastOrNull ?? url;
+  }
   final segments = url.split(RegExp(r'[/\\]')).where((s) => s.isNotEmpty);
   return segments.isEmpty ? url : Uri.decodeComponent(segments.last);
 }

@@ -104,9 +104,9 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
       const SizedBox(height: 8),
       Text(
         week.deliverables.isEmpty
-            ? 'Con ${week.minimumPercent} % cobras tu parte del bono. Hacer más en un '
-                'indicador no cubre lo que falta en otro.'
-            : 'Cobras tu parte con ${week.minimumPercent} % de puntaje y tus '
+            ? 'Con ${week.minimumPercent} % cobras tu parte del bono. Hacer más en '
+                'un indicador no cubre lo que falta en otro.'
+            : 'Cobras tu parte con ${week.minimumPercent} % de puntaje y tus '
                 '${week.deliverables.length} entregas validadas a tiempo.',
         style: muted,
       ),

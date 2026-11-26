@@ -84,9 +84,11 @@ class TeamScreen extends ConsumerWidget {
       ),
       const SizedBox(height: 6),
       Text(
-        'Montos en bolivianos. Tu parte se paga solo si tu KPI llega a '
-        '${team.myMinimumPercent} %. $myStatus Lo que alguien no gana no se '
-        'reparte a los demás.',
+        ('Montos en bolivianos. Tu parte se paga solo si tu KPI llega a '
+                '${team.myMinimumPercent} %. $myStatus Lo que alguien no gana no se '
+                'reparte a los demás.')
+            // El número y su «%» no se separan en dos líneas.
+            .replaceAll(' %', ' %'),
         style: AppText.body(12.5, FontWeight.w400, color: AppColors.muted, height: 1.35),
       ),
       const SizedBox(height: 14),
