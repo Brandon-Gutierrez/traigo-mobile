@@ -194,9 +194,10 @@ class _PriceFormState extends ConsumerState<_PriceForm> {
     final commission = commissionText.isEmpty ? null : double.tryParse(commissionText);
     final cost = _cost.text.trim().isEmpty ? null : money(_cost);
 
-    if (unit == null || wholesale == null || minimum == null || minimum < 1) {
+    if (unit == null || wholesale == null || minimum == null) {
       return (null, 'Completa precios y mínimo');
     }
+    if (minimum < 2) return (null, 'El mínimo por mayor es desde 2 u.');
     if (unit.isZero || wholesale.isZero) return (null, 'El precio no puede ser cero');
     if (wholesale > unit) return (null, 'El mayorista no supera al minorista');
     if (commissionText.isNotEmpty &&

@@ -617,7 +617,7 @@ class DemoControl {
     final wholesale = p.priceWholesale ?? product.priceWholesale!;
     final minimum = p.wholesaleMinQty ?? product.wholesaleMinQty!;
     final rate = p.commissionPct;
-    if (unit <= Money.zero || wholesale <= Money.zero || minimum < 1 || wholesale > unit) {
+    if (unit <= Money.zero || wholesale <= Money.zero || minimum < 2 || wholesale > unit) {
       throw const ValidationException(message: 'Revisa los precios y el mínimo.');
     }
     if (rate != null && (rate < 0 || rate > 100)) {

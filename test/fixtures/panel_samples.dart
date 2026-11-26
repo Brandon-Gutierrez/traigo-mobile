@@ -314,7 +314,11 @@ const authorizationDetailResponse = {
         'reason': 'Cerrado por Jime: solo 2 de sus 4 entregas quedaron validadas.',
       },
     ],
-    'checks': ['Cobros conciliados: 34 de 34', 'KPI con evidencia validada'],
+    'checks': [
+      'Cobros conciliados: 34 de 34 pagos confirmados',
+      'KPI con evidencia revisada',
+      'Duplicados depurados',
+    ],
     'changes': <Object>[],
     'can_approve': true,
     'blocked_reason': null,

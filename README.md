@@ -69,11 +69,8 @@ en producción debe ser `https`).
 Lo que debe ofrecer el backend (app y tienda web) está en
 [docs/api-contract.md](docs/api-contract.md). El backend se programa por fases
 en su repositorio, rama `feature/endpoints-mobile` (su `README.md` dice cómo
-levantarlo). Por ahora tiene **todo lo del equipo, el almacén y el panel de
-Jime** (pendientes y validaciones, devoluciones y duplicados, cumplimiento,
-cierre semanal, bono y comisiones). Faltan «Más» → Precios, Auditoría, reportes
-y Accesos, y **autorizar** desde Dirección: contra él, un cierre enviado queda
-esperando.
+levantarlo). **Ya tiene todo lo que usa la app**, para el equipo, almacén, Jime
+y Dirección.
 
 El documento se **genera**: se edita `tool/api-contract.template.md` y se corre
 
@@ -140,7 +137,8 @@ distintos códigos y **no hay un monto mínimo de pedido**. La regla está en
 - Mientras el cierre está con Dirección, nadie cambia valores, evidencia ni
   entregas de esa semana; para corregir, Dirección lo devuelve.
 - Con la autorización de Dirección la semana queda cerrada y Jime marca cada
-  pago del bono.
+  pago del bono. Contra el backend, si después de enviar se devuelve algo y eso
+  cambia lo que se paga, Dirección no puede autorizar: lo devuelve a Jime.
 - **Comisiones**: se envían cuando termina el mes (las de diciembre, desde el 1
   de enero). Mientras tanto se pueden ver. Cuentan en el mes en que llegó el
   dinero; si ese mes ya se envió, pasan a la siguiente liquidación.

@@ -20,8 +20,8 @@ reglas. Sale de los Excel de la campaña (precios, metas, KPI, bono y la hoja
 En el repositorio del backend, rama `feature/endpoints-mobile`. Ya están la
 **base de la API y el ingreso** (secciones 1, 2 y 4), el **Inicio, el equipo y
 «Mi semana»** (sección 5), el **catálogo y las ventas** (sección 6), el
-**almacén** (sección 7) y el **panel de Jime** (secciones 8 y 9); «Más» y
-Dirección (10 y 11) van en la fase siguiente. Su `README.md` dice cómo instalarlo, dar el PIN y el correo de
+**almacén** (sección 7), el **panel de Jime** (secciones 8 y 9) y **«Más» y
+Dirección** (10 y 11): todo lo que usa la app. La tienda web (12) no se hizo. Su `README.md` dice cómo instalarlo, dar el PIN y el correo de
 cada persona (`php artisan traigo:pin` y `traigo:correo`) y correr las pruebas.
 
 La base (`database/`) son las migraciones para **PostgreSQL 13 o superior** y los
@@ -103,6 +103,9 @@ Un `401` fuera del ingreso hace que la app cierre la sesión. Sin internet o con
 | `deliverable_validated` | 409 | Jime ya validó esa entrega: no se vuelve a enviar |
 | `week_closed` | 409 | El cierre de la semana está con Dirección o ya se autorizó, o Jime cerró la de esa persona |
 | `week_not_ended` | 409 | El cierre semanal se envía cuando la semana termina |
+| `collected_changed` | 409 | Desde el envío cambió lo cobrado y con eso lo que se paga: se devuelve a Jime |
+| `change_outdated` | 409 | El producto cambió y el precio pedido ya no cabe: se devuelve a Jime |
+| `below_wholesale` | 409 | La promoción bajaría del precio por mayor |
 | `promised_in_past` | 422 | La entrega acordada ya pasó (con 30 minutos de margen) |
 | `invalid_status` | 409 | El pedido ya no está en el estado que pide la acción |
 | `closing_already_sent` | 409 | El cierre de caja de ese día, el de la semana o la liquidación del mes ya se enviaron |
@@ -800,24 +803,48 @@ antes de la campaña) responde `200`** con ceros, no `404`.
 
 {{priceSheetResponse}}
 
-`POST /control/products/{id}/price-changes`: **solo los valores que cambian**.
-Guarda `previous_values`; un solo cambio pendiente por producto
-(`409 change_pending`). Las ventas ya registradas no cambian. `422` si no cambia
-nada, si un precio es 0, si el mayorista supera al minorista, si el mínimo es
-menor que 1 o si la comisión no está entre 0 y 100.
+`POST /control/products/{id}/price-changes` (solo `control`): **solo los valores
+que cambian** (lo igual a lo vigente se ignora). Guarda `previous_values`; un solo
+cambio pendiente por producto (`409 change_pending`). Las ventas ya registradas no
+cambian. `422` si no cambia nada, si un precio es 0, si el mayorista supera al
+minorista, si el mínimo es menor que 2 (la base lo exige), si el precio por mayor
+y su mínimo no van juntos o si la comisión no está entre 0 y 100 (hasta 2
+decimales). Responde `201` con la ficha. La ficha la leen `control` y
+`management`.
 
 {{priceChangeRequest}}
 
-`GET /control/audit?page=`: de `audit_logs`, con cada cambio redactado en español
-(no se puede editar ni borrar):
+`GET /control/audit?page=` (`control` y `management`): del registro que escribe la
+base (no se puede editar ni borrar), con cada hecho redactado en español, 30 por
+página y lo más nuevo primero. **Solo lo importante** (decidido el 25/11/2026):
+comprobantes confirmados o rechazados, cierres de caja, valores del KPI y
+evidencia observada, entregas, cierres semanales y quien se cierra a mano, bonos
+pagados, comisiones, precios y promociones, pedidos cancelados, devueltos o
+duplicados, stock cargado o ajustado, conteos, PIN y sesiones, y lo cambiado
+directo en la base («Sistema»). Los pasos automáticos (apartar stock, crear
+comisiones al vender…) quedan en la base sin mostrarse. `id` es texto único (los
+de stock y conteos empiezan con `m-` y `c-`).
 
 {{auditResponse}}
 
-`GET /control/reports/{type}?period=`: devuelve el **.xlsx** (el archivo, no
-JSON). `week` (número de semana: KPI, bono, cierre y pagos), `cash` (fecha: caja
-por método con diferencias) y `commissions` (mes: por persona y producto).
+`GET /control/reports/{type}?period=` (`control` y `management`): devuelve el
+**.xlsx** (el archivo, no JSON), hecho con `openspout`. Los textos van siempre
+como texto, así un nombre que empiece con «=» no se vuelve fórmula.
 
-`GET /control/system-status`:
+| `type` | `period` | Hojas |
+|---|---|---|
+| `week` | número de semana | Cierre, KPI, Bono, Pagos y, la primera semana, Entregas |
+| `cash` | fecha `2026-12-05` | Caja (por forma de pago, con diferencias), Cierre, Cobros y Por cobrar |
+| `commissions` | mes `2026-12` | Por persona, Por producto, Detalle y Liquidación |
+
+Un periodo mal escrito: `422`; una semana que no empezó o un día sin caja:
+`404` (el mensaje llega en JSON, como siempre).
+
+`GET /control/system-status` (solo `control`). El backend no hace respaldos: los
+hace el hosting o un script, que al terminar ejecuta `php artisan
+traigo:respaldo` (y, cuando se prueba restaurar uno, `php artisan
+traigo:respaldo restauracion`; `--fecha="2026-12-06 03:00"` para anotar otra
+hora). Mientras no se anote nada, `null` (decidido el 25/11/2026).
 
 {{systemStatusResponse}}
 
@@ -828,7 +855,8 @@ por método con diferencias) y `commissions` (mes: por persona y producto).
 
 - `POST /control/members/{id}/pin` con `{ "pin": "4821" }` (4 números): guarda el
   hash, desbloquea la cuenta y borra sus tokens (`204`). El PIN no se escribe en
-  el historial ni en los registros del servidor.
+  el historial ni en los registros del servidor (el historial solo dice que se
+  cambió).
 - `POST /control/members/{id}/revoke-sessions`: borra sus tokens (`204`).
 - Las dos solo para cuentas del equipo (si no, `404`): las de Jime y Dirección
   las cambia quien administra el servidor.
@@ -847,7 +875,19 @@ liquidaciones `sent`, cambios de precio y promociones `pending`).
 {{authorizationDetailResponse}}
 
 En el bono, a quien Jime cerró a mano va en `unpaid` con el motivo («Cerrado por
-Jime: …»).
+Jime: …»); los demás que no cumplen, con sus entregas o su puntaje contra el
+mínimo. Todo es de `management`. Lo que ya no espera (o no existe): `404`.
+
+**Si después de enviar se devuelve algo cobrado** (decidido el 25/11/2026): el
+bono sigue siendo la foto enviada, pero si con lo cobrado hoy **cambiaría lo que
+se paga**, `can_approve` es `false` con `blocked_reason`, y aprobar responde
+`409 collected_changed`: hay que devolverlo para que Jime lo envíe de nuevo. Si
+no cambia lo que se paga, se puede autorizar y `checks` lo avisa. Una devolución
+en curso hace esperar a la autorización.
+
+Un cambio de precio que ya no cabe (porque el producto cambió después):
+`can_approve: false` y `409 change_outdated`. Una promoción que bajaría del precio
+por mayor: `can_approve: false` y `409 below_wholesale`.
 
 `POST /management/authorizations/{type}/{id}/approve` (`204`):
 
@@ -858,9 +898,11 @@ Jime: …»).
 | `price_change` | `approved` y **en la misma transacción** se aplica al producto. Si define la comisión, las `commissions` sin % de ese producto que no se liquidaron la toman (sección 13.5) |
 | `promotion` | `approved` |
 
-`POST /management/authorizations/{type}/{id}/return` con `{ "reason" }` (`204`):
-cierre o liquidación → `returned`; precio o promoción → `rejected` con la nota. Al
-devolver un cierre, Jime vuelve a indicar los cierres a mano cuando lo reenvía.
+`POST /management/authorizations/{type}/{id}/return` con `{ "reason" }`
+obligatorio (`204`): cierre o liquidación → `returned`; precio o promoción →
+`rejected` con la nota (la de una promoción queda en el historial). Al devolver un
+cierre se borran sus resultados: quien Jime cerró a mano puede completar lo suyo y
+los cierres a mano se indican otra vez al reenviar.
 
 ## 12. Tienda web de Navidad (sin sesión) — propuesta
 
@@ -996,7 +1038,7 @@ las imágenes y la audiencia de regalo (`gift_audience`).
 |---|---|
 | 5 minutos | Pedidos web `pending_payment` con `expires_at` vencido → `expired` y liberar la reserva |
 | Día | Borrar `two_factor_challenges` vencidos |
-| Día | Respaldo de la base (cifrado si sale del servidor) y, cada cierto tiempo, **probar la restauración** (el Excel lo exige) |
+| Día | Respaldo de la base **y de `storage/app/private`** (cifrado si sale del servidor) por el hosting o un script, que lo anota con `php artisan traigo:respaldo`; cada cierto tiempo, **probar la restauración** y anotarla (el Excel lo exige) |
 
 ## 16. Seguridad
 
