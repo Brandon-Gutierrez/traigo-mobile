@@ -152,6 +152,8 @@ también lo leen `control` y `management` («Precios autorizados» y pedidos).
 | `GET /home` | equipo | vistas de bono y KPI |
 | `GET /team/week` | equipo | `bonus_weeks`, `v_week_bonus` |
 | `GET /me/week` | equipo | `kpi_weekly_results`, `kpi_evidence`, `system_deliverables` |
+| `GET /me/attendance` | cuenta activa del equipo | `attendance_assignments`, `attendance_marks` |
+| `POST /me/attendance` | titular del turno | `attendance_attempts` |
 | `POST /me/kpi-results/{id}/evidence` | equipo (lo suyo) | `kpi_evidence` |
 | `POST /me/deliverables/{id}/submission` | systems (lo suyo) | `system_deliverables` |
 | `GET /catalog` | equipo, control, management | `products`, `inventory` |
@@ -652,6 +654,27 @@ evidencia o el enlace.
   }
 }
 ```
+
+### `GET /me/attendance`
+
+Devuelve en `data` una lista de turnos propios. Cada elemento incluye
+`id` (texto con el ID del turno), `site`, `starts_at`, `ends_at`, `active`,
+`cancelled`, `entry_at` y `exit_at`. Las horas de las marcas pueden ser nulas.
+Se incluyen turnos recientes y los que empiezan dentro de las próximas 24 horas.
+
+### `POST /me/attendance`
+
+La app pide una lectura puntual al pulsar para marcar. Envía `Idempotency-Key`
+(UUID) y los campos `assignment_id`, `kind` (`entry` o `exit`), `latitude`,
+`longitude`, `accuracy_m` y `captured_at` (ISO 8601 con zona horaria).
+El servidor toma a la persona de la sesión y calcula la distancia al rango
+vigente. Las coordenadas del dispositivo solo se usan para el cálculo.
+
+Devuelve `200` con `data.accepted`, `data.marked_at`, `data.reason` y
+`data.message`. Un intento rechazado tiene `marked_at: null`. Después de un
+rechazo, la persona vuelve a pulsar con una nueva clave. En un reintento de
+red, la misma clave conserva la decisión para ese turno y tipo de marca.
+Una salida requiere una entrada. La respuesta usa el reloj del servidor.
 
 ## 6. Catálogo y ventas
 

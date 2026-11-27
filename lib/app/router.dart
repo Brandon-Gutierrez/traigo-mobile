@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/attendance/presentation/attendance_screen.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/domain/auth.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -85,6 +86,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.splash, builder: (_, _) => const SplashScreen()),
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
       GoRoute(path: AppRoutes.verify, builder: (_, _) => const TwoStepScreen()),
+      GoRoute(
+        path: AppRoutes.attendance,
+        builder: (_, _) => const AttendanceScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => AppShell(shell: shell),
         // Una rama por pestaña, en el orden de [AppRoutes.tabs].
@@ -109,6 +114,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// «Mis pedidos» además exige vender; despachos y stock, ser de almacén; y en
 /// «Más» y Cumplimiento hay cosas que son solo de Jime.
 bool canOpen(MemberRole role, String location) {
+  if (location == AppRoutes.attendance) return true;
   bool within(String route) => location == route || location.startsWith('$route/');
   if (within(AppRoutes.orders)) return role.canSell;
   if (within(AppRoutes.dispatches) || within(AppRoutes.stock)) {

@@ -44,6 +44,12 @@ class HomeScreen extends ConsumerWidget {
           detail: '${member.title} · ${member.code}',
         ),
         const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => context.push(AppRoutes.attendance),
+          icon: const Icon(Icons.location_on_outlined),
+          label: const Text('Asistencia'),
+        ),
+        const SizedBox(height: 12),
         ...home.when(
           data: (data) => _content(context, member, data),
           loading: () => const [

@@ -62,6 +62,11 @@ Contra el backend Laravel:
 flutter run --dart-define=API_MODE=live --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
 ```
 
+La asistencia está disponible en modo conectado cuando el servidor tiene una
+sede y un turno asignados. Solo solicita ubicación al marcar entrada o salida.
+Para compilar iOS con Swift Package Manager, desactiva la solicitud de permiso
+permanente con `BYPASS_PERMISSION_LOCATION_ALWAYS=1 flutter build ios` en macOS.
+
 `10.0.2.2` es el `localhost` de tu PC visto desde el emulador de Android. En un
 celular físico usa la IP de tu PC en la red local (en debug se permite `http`;
 en producción debe ser `https`).

@@ -27,7 +27,7 @@ class AppConfig {
     const mode = String.fromEnvironment('API_MODE', defaultValue: 'demo');
     const baseUrl = String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: 'http://10.0.2.2:8000/api/v1',
+      defaultValue: 'https://duckie-carposporic-nickolas.ngrok-free.dev/api/v1',
     );
     return AppConfig(
       mode: mode == 'live' ? DataMode.live : DataMode.demo,

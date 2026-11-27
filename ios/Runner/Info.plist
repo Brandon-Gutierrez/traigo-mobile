@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Usamos la cámara para fotografiar comprobantes de pago y la evidencia de tu trabajo.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Usamos tu ubicación cuando pulsas para registrar la entrada o salida de tu turno.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Puedes elegir una foto como comprobante de pago o como evidencia de tu trabajo.</string>
 	<key>UIApplicationSceneManifest</key>

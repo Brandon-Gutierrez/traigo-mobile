@@ -1,6 +1,7 @@
 /// Rutas de la API, relativas a `API_BASE_URL` (que ya incluye `/api/v1`).
 /// Cada una está explicada en docs/api-contract.md.
 abstract final class ApiPaths {
+  static const attendance = '/me/attendance';
   // Ingreso
   static const login = '/auth/login';
   static const twoFactor = '/auth/two-factor';

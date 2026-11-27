@@ -41,6 +41,12 @@ class MoreScreen extends ConsumerWidget {
           style: AppText.body(14, FontWeight.w400, color: AppColors.muted),
         ),
         const SizedBox(height: 10),
+        MenuRow(
+          icon: Icons.location_on_outlined,
+          title: 'Asistencia',
+          subtitle: 'Tus entradas y salidas',
+          onTap: () => context.push(AppRoutes.attendance),
+        ),
         if (!control)
           MenuRow(
             icon: Icons.checklist,
